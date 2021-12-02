@@ -7,6 +7,7 @@
 #include <cmsis_os2.h>
 #include <logging/log.h>
 #include "mctp.h"
+#include "hal_i2c_slave.h"
 
 LOG_MODULE_DECLARE(mctp);
 
@@ -85,6 +86,12 @@ static uint16_t mctp_smbus_read(void *mctp_p, uint8_t *buf, uint32_t len, mctp_e
     uint8_t rlen = 0;
 
     /* TODO: read data from smbus */
+    uint8_t ret = 0;
+    ret = i2c_slave_read(mctp_inst->medium_conf.smbus_conf.bus, rdata, 256, &rlen);
+    if (ret){
+        LOG_ERR("i2c_slave_read fail, ret %d\n", ret);
+        return 0;
+    }
 
     smbus_hdr *hdr = (smbus_hdr *)rdata;
 
@@ -107,8 +114,8 @@ static uint16_t mctp_smbus_read(void *mctp_p, uint8_t *buf, uint32_t len, mctp_e
 
     uint8_t rt_size = rlen - sizeof(smbus_hdr) - is_pec_exist;
     memcpy(buf, rdata + sizeof(smbus_hdr), rt_size);
-    // return rt_size;
-    return 0;
+    return rt_size;
+    // return 0;
 }
 
 static uint16_t mctp_smbus_write(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext_param extra_data)
@@ -136,6 +143,15 @@ static uint16_t mctp_smbus_write(void *mctp_p, uint8_t *buf, uint32_t len, mctp_
     LOG_HEXDUMP_DBG(send_buf, send_len, "mctp_smbus_write make header");
     
     /* TODO: write data to smbus */
+    int status;
+    I2C_MSG i2c_msg;
+    i2c_msg.bus = mctp_inst->medium_conf.smbus_conf.bus;
+    i2c_msg.slave_addr = extra_data.smbus_ext_param.addr >> 1;
+    i2c_msg.tx_len = send_len;
+    memcpy(&i2c_msg.data[0], send_buf, send_len);
+    status = i2c_master_write(&i2c_msg, 5);
+    if (status)
+        LOG_ERR("i2c_master_write failt, ret %d", status);
 
     /* TODO: return the actually write data len */
     return 1;

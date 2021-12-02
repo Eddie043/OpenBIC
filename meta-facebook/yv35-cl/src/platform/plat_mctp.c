@@ -41,7 +41,7 @@ static mctp_msg_handler cmd_tbl[] = {
 };
 
 static mctp_smbus_port smbus_port[] = {
-	{.conf.smbus_conf.addr = 0xB2, .conf.smbus_conf.bus = 0x01},
+	{.conf.smbus_conf.addr = 0x60, .conf.smbus_conf.bus = 0x06},
 	// {.conf.smbus_conf.addr = 0x20, .conf.smbus_conf.bus = 0x02}
 };
 
