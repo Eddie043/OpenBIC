@@ -209,7 +209,6 @@
 
 &i2c6 {
 	pinctrl-0 = <&pinctrl_i2c6_default>;
-  clock-frequency = <I2C_BITRATE_FAST_PLUS>;
 	status = "okay";
 
 };
