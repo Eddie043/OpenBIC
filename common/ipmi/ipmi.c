@@ -133,8 +133,8 @@ void IPMI_OEM_1S_handler(ipmi_msg *msg)
 		break;
 	case CMD_OEM_SET_GPIO_CONFIG:
 		break;
-	case CMD_OEM_SENSOR_POLL_EN:
-		pal_OEM_SENSOR_POLL_EN(msg);
+	case CMD_OEM_SEND_INTERRUPT_TO_BMC:
+		pal_OEM_SEND_INTERRUPT_TO_BMC(msg);
 		break;
 	case CMD_OEM_FW_UPDATE:
 		pal_OEM_FW_UPDATE(msg);
@@ -142,11 +142,22 @@ void IPMI_OEM_1S_handler(ipmi_msg *msg)
 	case CMD_OEM_GET_FW_VERSION:
 		pal_OEM_GET_FW_VERSION(msg);
 		break;
+  case CMD_OEM_PECIaccess:
+    pal_OEM_PECIaccess(msg);
+    break;
+  case CMD_OEM_GET_POST_CODE:
+    pal_OEM_GET_POST_CODE(msg);
+    break;
 	case CMD_OEM_SET_JTAG_TAP_STA:
 		pal_OEM_SET_JTAG_TAP_STA(msg);
 		break;
 	case CMD_OEM_JTAG_DATA_SHIFT:
 		pal_OEM_JTAG_DATA_SHIFT(msg);
+		break;
+	case CMD_OEM_SENSOR_POLL_EN:
+		pal_OEM_SENSOR_POLL_EN(msg);
+	case CMD_OEM_ACCURACY_SENSNR:
+		pal_OEM_ACCURACY_SENSNR(msg);
 		break;
 	case CMD_OEM_GET_SET_GPIO:
 		pal_OEM_GET_SET_GPIO(msg);
