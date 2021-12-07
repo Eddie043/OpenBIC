@@ -76,6 +76,22 @@ typedef struct _pldm_msg {
     uint16_t len;
 } pldm_msg;
 
+typedef struct _pldm {
+    /* pldm message response timeout prcoess resource */
+    k_tid_t monitor_task;
+    struct k_thread thread_data;
+
+    /* store the msg that are not yet to receive the response */
+    sys_slist_t wait_recv_resp_list;
+    struct k_mutex wait_recv_resp_list_mutex;
+
+    /* store the msg that are not yet to send the response */
+    sys_slist_t wait_send_resp_list;
+    struct k_mutex wait_send_resp_list_mutex;
+
+    void *interface; /* the pldm module over which interface, as mctp */
+} pldm_t;
+
 /* the pldm command handler */
 uint8_t mctp_pldm_cmd_handler(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext_param ext_params);
 
@@ -88,7 +104,7 @@ uint8_t mctp_pldm_send_msg_with_timeout(void *mctp_p, pldm_msg *msg, mctp_ext_pa
 uint8_t mctp_pldm_send_msg(void *mctp_p, pldm_msg *msg, mctp_ext_param ext_param, 
                         void (*resp_fn)(void *, uint8_t *, uint16_t), void *cb_args);
 
-uint8_t pldm_init(void);
+pldm_t *pldm_init(void *interface);
 
 #ifdef __cplusplus
 }

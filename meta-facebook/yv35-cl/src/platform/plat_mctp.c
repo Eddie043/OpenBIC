@@ -21,6 +21,7 @@ LOG_MODULE_REGISTER(plat_mctp);
 
 typedef struct _mctp_smbus_port {
 	mctp *mctp_inst;
+	pldm_t *pldm_inst;
 	mctp_medium_conf conf;
 } mctp_smbus_port;
 
@@ -150,8 +151,13 @@ void plat_mctp_init(void)
 
 		mctp_reg_endpoint_resolve_func(p->mctp_inst, get_route_info);
 		mctp_reg_msg_rx_func(p->mctp_inst, mctp_msg_recv);
+		
+		p->pldm_inst = pldm_init(p->mctp_inst);
+		if (!p->pldm_inst) {
+			LOG_ERR("pldm_init failed!!");
+			continue;
+		}
+
 		mctp_start(p->mctp_inst);
 	}
-
-	pldm_init();
 }

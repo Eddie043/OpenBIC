@@ -15,9 +15,8 @@ LOG_MODULE_REGISTER(pldm);
 #define PLDM_MSG_TIMEOUT_MS 5000
 #define PLDM_RESP_MSG_PROC_MUTEX_TIMEOUT_MS 500
 
-K_THREAD_STACK_DEFINE(wait_recv_resp_list_thread_stack, STACKSIZE);
-
-typedef struct _req_pldm_msg {
+K_THREAD_STACK_DEFINE(list_monitor_thread_stack, STACKSIZE);
+typedef struct _wait_resp_pldm_msg {
     sys_snode_t node;
     pldm_hdr hdr;
     int64_t exp_timeout_time;
@@ -25,77 +24,109 @@ typedef struct _req_pldm_msg {
     void *cb_args;
     void (*to_fn)(void *);
     void *to_fn_args;
-} req_pldm_msg;
-
-typedef struct _pldm {
-    /* pldm message response timeout prcoess resource */
-    k_tid_t monitor_task;
-    struct k_thread thread_data;
-    sys_slist_t wait_recv_resp_list;
-    struct k_mutex wait_recv_resp_list_mutex;
-} pldm_t;
+} wait_resp_pldm_msg;
 
 struct _pldm_handler_query_entry {
     PLDM_TYPE type;
     uint8_t (*handler_query)(uint8_t, void **);
 };
 
-static pldm_t pldm;
-
 static struct _pldm_handler_query_entry query_tbl[] = {
     {PLDM_TYPE_BASE, pldm_base_handler_query},
     {PLDM_TYPE_OEM, pldm_oem_handler_query}
 };
 
-static void wait_recv_resp_list_monitor(void *pldm_p, void *dummy0, void *dummy1)
+static pldm_t *get_pldm_inst(void *interface)
+{
+    if (!interface)
+        return NULL;
+
+    return CONTAINER_OF(interface, pldm_t, interface);
+}
+
+static uint8_t list_timeout_chk(sys_slist_t *list, struct k_mutex *mutex)
+{
+    if (!list || !mutex)
+        return PLDM_ERROR;
+
+    if (k_mutex_lock(mutex, K_MSEC(PLDM_RESP_MSG_PROC_MUTEX_TIMEOUT_MS))) {
+        LOG_WRN("pldm mutex is locked over %d ms!!", PLDM_RESP_MSG_PROC_MUTEX_TIMEOUT_MS);
+        return PLDM_ERROR;
+    }
+
+    sys_snode_t *node;
+    sys_snode_t *s_node;
+    sys_snode_t *pre_node = NULL;
+    int64_t cur_uptime = k_uptime_get();
+
+    SYS_SLIST_FOR_EACH_NODE_SAFE(list, node, s_node) {
+        wait_resp_pldm_msg *p = (wait_resp_pldm_msg *)node;
+
+        if ((p->exp_timeout_time <= cur_uptime)) {
+            LOG_INF("pldm msg timeout!!");
+            LOG_INF("type %x, cmd %x, inst_id %x", p->hdr.pldm_type, p->hdr.cmd, p->hdr.inst_id);
+            sys_slist_remove(list, pre_node, node);
+
+            if (p->to_fn)
+                p->to_fn(p->to_fn_args);
+
+            k_free(p);
+        } else {
+            pre_node = node;
+        }
+    }
+
+    k_mutex_unlock(mutex);
+    return PLDM_SUCCESS;
+}
+
+static void list_monitor(void *pldm_p, void *dummy0, void *dummy1)
 {
     if (!pldm_p) {
         LOG_ERR("pldm is null");
         return;
     }
 
-    (void)dummy0;
-    (void)dummy1;
+    ARG_UNUSED(dummy0);
+    ARG_UNUSED(dummy1);
 
     pldm_t *pldm_inst = (pldm_t *)pldm_p;
 
     while (1) {
         k_msleep(PLDM_MSG_CHECK_PER_MS);
 
-        if (k_mutex_lock(&pldm.wait_recv_resp_list_mutex, K_MSEC(PLDM_RESP_MSG_PROC_MUTEX_TIMEOUT_MS))) {
-            LOG_WRN("pldm mutex is locked over %d ms!!", PLDM_RESP_MSG_PROC_MUTEX_TIMEOUT_MS);
-            continue;
-        }
-
-        sys_snode_t *node;
-        sys_snode_t *s_node;
-        sys_snode_t *pre_node = NULL;
-        int64_t cur_uptime = k_uptime_get();
-
-        SYS_SLIST_FOR_EACH_NODE_SAFE(&pldm_inst->wait_recv_resp_list, node, s_node) {
-            req_pldm_msg *p = (req_pldm_msg *)node;
-
-            if ((p->exp_timeout_time <= cur_uptime)) {
-                LOG_INF("pldm msg timeout!!");
-                LOG_INF("type %x, cmd %x, inst_id %x", p->hdr.pldm_type, p->hdr.cmd, p->hdr.inst_id);
-                sys_slist_remove(&pldm.wait_recv_resp_list, pre_node, node);
-
-                if (p->to_fn)
-                    p->to_fn(p->to_fn_args);
-
-                k_free(p);
-            } else {
-                pre_node = node;
-            }
-        }
-        k_mutex_unlock(&pldm.wait_recv_resp_list_mutex);
+        list_timeout_chk(&pldm_inst->wait_recv_resp_list, &pldm_inst->wait_recv_resp_list_mutex);
+        list_timeout_chk(&pldm_inst->wait_send_resp_list, &pldm_inst->wait_send_resp_list_mutex);
     }
 }
-
-static uint8_t pldm_resp_msg_proc(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext_param ext_params)
+#if 0
+static uint8_t pldm_wait_resp_append(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext_param ext_params)
 {
-	if (!mctp_p || !buf || !len)
-		return PLDM_ERROR;
+    if (!mctp_p || !buf || !len)
+        return PLDM_ERROR;
+
+    wait_resp_pldm_msg *msg = (wait_resp_pldm_msg *)k_malloc(sizeof(*msg));
+    if (!msg) {
+        LOG_WRN("malloc FAILED!!");
+        return PLDM_ERROR;
+    }
+    memset(msg, 0, sizeof(*msg));
+    memcpy(&msg->hdr, buf, sizeof(msg->hdr));
+
+    /* the uptime is int64_t millisecond, don't care overflow */
+    msg->exp_timeout_time = PLDM_MSG_TIMEOUT_MS;
+
+    /* TODO: should set timeout? */
+    k_mutex_lock(&pldm.wait_send_resp_list_mutex, K_FOREVER);
+    sys_slist_append(&pldm.wait_send_resp_list, &msg->node);
+    k_mutex_unlock(&pldm.wait_send_resp_list_mutex);
+    return PLDM_SUCCESS;
+}
+#endif
+static uint8_t pldm_resp_msg_proc(pldm_t *pldm_inst, uint8_t *buf, uint32_t len, mctp_ext_param ext_params)
+{
+    if (!pldm_inst || !buf || !len)
+        return PLDM_ERROR;
 
     pldm_msg *msg = (pldm_msg *)buf;
     sys_snode_t *node;
@@ -103,13 +134,13 @@ static uint8_t pldm_resp_msg_proc(void *mctp_p, uint8_t *buf, uint32_t len, mctp
     sys_snode_t *pre_node = NULL;
     sys_snode_t *found_node = NULL;
 
-    if (k_mutex_lock(&pldm.wait_recv_resp_list_mutex, K_MSEC(PLDM_RESP_MSG_PROC_MUTEX_TIMEOUT_MS))) {
+    if (k_mutex_lock(&pldm_inst->wait_recv_resp_list_mutex, K_MSEC(PLDM_RESP_MSG_PROC_MUTEX_TIMEOUT_MS))) {
         LOG_WRN("pldm mutex is locked over %d ms!!", PLDM_RESP_MSG_PROC_MUTEX_TIMEOUT_MS);
         return PLDM_ERROR;
     }
 
-    SYS_SLIST_FOR_EACH_NODE_SAFE(&pldm.wait_recv_resp_list, node, s_node) {
-        req_pldm_msg *p = (req_pldm_msg *)node;
+    SYS_SLIST_FOR_EACH_NODE_SAFE(&pldm_inst->wait_recv_resp_list, node, s_node) {
+        wait_resp_pldm_msg *p = (wait_resp_pldm_msg *)node;
 
         /* found the proper handler */
         if ((p->hdr.inst_id == msg->hdr.inst_id) && 
@@ -117,17 +148,17 @@ static uint8_t pldm_resp_msg_proc(void *mctp_p, uint8_t *buf, uint32_t len, mctp
             (p->hdr.cmd == msg->hdr.cmd)) {
             
             found_node = node;
-            sys_slist_remove(&pldm.wait_recv_resp_list, pre_node, node);
+            sys_slist_remove(&pldm_inst->wait_recv_resp_list, pre_node, node);
             break;
         } else {
             pre_node = node;
         }
     }
-    k_mutex_unlock(&pldm.wait_recv_resp_list_mutex);
+    k_mutex_unlock(&pldm_inst->wait_recv_resp_list_mutex);
 
     if (found_node) {
         /* invoke resp handler */
-        req_pldm_msg *p = (req_pldm_msg *)found_node;
+        wait_resp_pldm_msg *p = (wait_resp_pldm_msg *)found_node;
         if (p->resp_fn)
             p->resp_fn(p->cb_args, buf + sizeof(p->hdr), len - sizeof(p->hdr)); /* remove pldm header for handler */
         k_free(p);
@@ -138,8 +169,12 @@ static uint8_t pldm_resp_msg_proc(void *mctp_p, uint8_t *buf, uint32_t len, mctp
 
 uint8_t mctp_pldm_cmd_handler(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext_param ext_params)
 {
-	if (!mctp_p || !buf || !len)
-		return PLDM_ERROR;
+    if (!mctp_p || !buf || !len)
+        return PLDM_ERROR;
+
+    pldm_t *pldm_inst = get_pldm_inst(mctp_p);
+    if (pldm_inst)
+        return PLDM_ERROR;
 
     pldm_hdr *hdr = (pldm_hdr *)buf;
     LOG_DBG("msg_type = %d", hdr->msg_type);
@@ -149,7 +184,7 @@ uint8_t mctp_pldm_cmd_handler(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext
 
     /* the message is a response, check if any callback function should be invoked */
     if (!hdr->rq)
-        return pldm_resp_msg_proc(mctp_p, buf, len, ext_params);
+        return pldm_resp_msg_proc(pldm_inst, buf, len, ext_params);
 
     /* the message is a request, find the proper handler to handle it */
     /* initial response data */
@@ -188,11 +223,10 @@ uint8_t mctp_pldm_cmd_handler(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext
     
     /* invoke the cmd handler to process */
     rc = handler(buf + sizeof(*hdr), len - sizeof(*hdr), resp.buf, &resp.len);
-    if (rc == PLDM_LATER_RESP) {
-        /* TODO: needs do something? */
-        return PLDM_SUCCESS;
-    }
-
+#if 0
+    if (rc == PLDM_LATER_RESP)
+        return pldm_wait_resp_append(mctp_p, buf, len, ext_params);
+#endif
 send_msg:
     /* send the pldm response data */
     resp_len = sizeof(resp.hdr) + resp.len;
@@ -206,6 +240,13 @@ uint8_t mctp_pldm_send_msg_with_timeout(void *mctp_p, pldm_msg *msg, mctp_ext_pa
 {
     if (!mctp_p || !msg)
         return PLDM_ERROR;
+
+    pldm_t *pldm_inst = get_pldm_inst(mctp_p);
+    if (pldm_inst) {
+        LOG_WRN("can't get pldm inst by mctp %p\n", mctp_p);
+        return PLDM_ERROR;
+    }
+
 
     /* the request should be set inst_id/msg_type/mctp_tag_owner in the header */
     if (msg->hdr.rq) {
@@ -233,26 +274,26 @@ uint8_t mctp_pldm_send_msg_with_timeout(void *mctp_p, pldm_msg *msg, mctp_ext_pa
 
     if (msg->hdr.rq) {
         /* if the msg is sending request, should store the msg/resp_fn/cb_args, which are used to handle the response data */
-        req_pldm_msg *req_msg = (req_pldm_msg *)k_malloc(sizeof(*req_msg));
-        if (!req_msg) {
+        wait_resp_pldm_msg *wait_msg = (wait_resp_pldm_msg *)k_malloc(sizeof(*wait_msg));
+        if (!wait_msg) {
             LOG_WRN("malloc FAILED!!");
             return PLDM_ERROR;
         }
-        memset(req_msg, 0, sizeof(*req_msg));
+        memset(wait_msg, 0, sizeof(*wait_msg));
 
-        req_msg->hdr = msg->hdr;
-        req_msg->resp_fn = resp_fn;
-        req_msg->cb_args = cb_args;
-        req_msg->to_fn = to_fn;
-        req_msg->to_fn_args = to_fn_args;
+        wait_msg->hdr = msg->hdr;
+        wait_msg->resp_fn = resp_fn;
+        wait_msg->cb_args = cb_args;
+        wait_msg->to_fn = to_fn;
+        wait_msg->to_fn_args = to_fn_args;
         
         /* the uptime is int64_t millisecond, don't care overflow */
-        req_msg->exp_timeout_time = k_uptime_get() + ((timeout_ms) ? timeout_ms : PLDM_MSG_TIMEOUT_MS);
+        wait_msg->exp_timeout_time = k_uptime_get() + ((timeout_ms) ? timeout_ms : PLDM_MSG_TIMEOUT_MS);
 
         /* TODO: should set timeout? */
-        k_mutex_lock(&pldm.wait_recv_resp_list_mutex, K_FOREVER);
-        sys_slist_append(&pldm.wait_recv_resp_list, &req_msg->node);
-        k_mutex_unlock(&pldm.wait_recv_resp_list_mutex);
+        k_mutex_lock(&pldm_inst->wait_recv_resp_list_mutex, K_FOREVER);
+        sys_slist_append(&pldm_inst->wait_recv_resp_list, &wait_msg->node);
+        k_mutex_unlock(&pldm_inst->wait_recv_resp_list_mutex);
     }
 
     /* store the msg for waiting response */
@@ -266,25 +307,45 @@ uint8_t mctp_pldm_send_msg(void *mctp_p, pldm_msg *msg, mctp_ext_param ext_param
     return mctp_pldm_send_msg_with_timeout(mctp_p, msg, ext_param, resp_fn, cb_args, 0, NULL, NULL);
 }
 
-uint8_t pldm_init(void)
+pldm_t *pldm_init(void *interface)
 {
-    sys_slist_init(&pldm.wait_recv_resp_list);
-    if (k_mutex_init(&pldm.wait_recv_resp_list_mutex))
-        return PLDM_ERROR;
+    pldm_t *pldm_inst = (pldm_t *)k_malloc(sizeof(*pldm_inst));
+    if (!pldm_inst) {
+        LOG_WRN("can't alloc pldm_inst!!");
+        goto err;
+    }
+
+    if (!interface)
+        goto err;
+
+    sys_slist_init(&pldm_inst->wait_recv_resp_list);
+    if (k_mutex_init(&pldm_inst->wait_recv_resp_list_mutex))
+        goto err;
     
-    pldm.monitor_task = k_thread_create(&pldm.thread_data,
-        wait_recv_resp_list_thread_stack,
-        K_THREAD_STACK_SIZEOF(wait_recv_resp_list_thread_stack),
-        wait_recv_resp_list_monitor,
-        &pldm, NULL, NULL,
+    sys_slist_init(&pldm_inst->wait_send_resp_list);
+    if (k_mutex_init(&pldm_inst->wait_send_resp_list_mutex))
+        goto err;
+
+    pldm_inst->monitor_task = k_thread_create(&pldm_inst->thread_data,
+        list_monitor_thread_stack,
+        K_THREAD_STACK_SIZEOF(list_monitor_thread_stack),
+        list_monitor,
+        pldm_inst, NULL, NULL,
         7, 0, K_MSEC(10)
     );
 
-    if (!pldm.monitor_task) {
+    if (!pldm_inst->monitor_task) {
         LOG_ERR("create pldm monitor task failed!!");
-        return PLDM_ERROR;
+        goto err;
     }
 
+    pldm_inst->interface = interface;
+
+    return pldm_inst;
+
+err:
+    if (pldm_inst)
+        k_free(pldm_inst);
     return PLDM_SUCCESS;
 }
 
