@@ -124,7 +124,8 @@ uint8_t get_sensor_reading(uint8_t sensor_num, int *reading, uint8_t read_mode) 
       return sensor_config[SnrNum_SnrCfg_map[sensor_num]].cache_status;
     }
   } else if (read_mode == get_from_cache) {
-    if (sensor_config[SnrNum_SnrCfg_map[sensor_num]].cache_status == SNR_READ_SUCCESS ) {
+    if (sensor_config[SnrNum_SnrCfg_map[sensor_num]].cache_status == SNR_READ_SUCCESS
+        || sensor_config[SnrNum_SnrCfg_map[sensor_num]].cache_status == SNR_READ_ACUR_SUCCESS) {
       *reading = sensor_config[SnrNum_SnrCfg_map[sensor_num]].cache;
       return sensor_config[SnrNum_SnrCfg_map[sensor_num]].cache_status;
     } else {
@@ -173,7 +174,7 @@ bool sensor_init(void) {
   SDR_init();
 
   if( SDR_NUM != 0) {
-    sensor_config = k_malloc(SDR_NUM * sizeof(snr_cfg));
+    sensor_config = malloc(SDR_NUM * sizeof(snr_cfg));
     if(sensor_config != NULL) {
       pal_load_snr_config();
     } else {
@@ -185,6 +186,7 @@ bool sensor_init(void) {
     return false;
   }
 
+  fix_Snrconfig();
   map_SnrNum_SDR_CFG();  
   
   if (DEBUG_SNR) {
