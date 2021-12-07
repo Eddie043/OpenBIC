@@ -173,7 +173,7 @@ uint8_t mctp_pldm_cmd_handler(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext
         return PLDM_ERROR;
 
     pldm_t *pldm_inst = get_pldm_inst(mctp_p);
-    if (pldm_inst)
+    if (!pldm_inst)
         return PLDM_ERROR;
 
     pldm_hdr *hdr = (pldm_hdr *)buf;
@@ -242,7 +242,7 @@ uint8_t mctp_pldm_send_msg_with_timeout(void *mctp_p, pldm_msg *msg, mctp_ext_pa
         return PLDM_ERROR;
 
     pldm_t *pldm_inst = get_pldm_inst(mctp_p);
-    if (pldm_inst) {
+    if (!pldm_inst) {
         LOG_WRN("can't get pldm inst by mctp %p\n", mctp_p);
         return PLDM_ERROR;
     }

@@ -499,8 +499,10 @@ uint8_t mctp_send_msg(mctp *mctp_inst, uint8_t *buf, uint16_t len, mctp_ext_para
     mctp_tx_msg mctp_msg = {0};
     mctp_msg.len = len;
     mctp_msg.buf = (uint8_t *)k_malloc(len);
-    if (!mctp_msg.buf)
+    if (!mctp_msg.buf) {
+        LOG_WRN("can't alloc buf!!");
         goto error;
+    }
     memcpy(mctp_msg.buf, buf, len);
     mctp_msg.ext_param = ext_param;
 
