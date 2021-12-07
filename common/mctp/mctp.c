@@ -20,7 +20,7 @@ LOG_MODULE_REGISTER(mctp);
 
 #define MSG_ASSEMBLY_BUF_SIZE 1024
 
-#define STACKSIZE 1024
+#define STACKSIZE 4096
 K_THREAD_STACK_DEFINE(rx_task_stack_area, STACKSIZE);
 K_THREAD_STACK_DEFINE(tx_task_stack_area, STACKSIZE);
 
@@ -166,7 +166,7 @@ static void mctp_rx_task(void *arg, void *dummy0, void *dummy1)
 
     LOG_INF("mctp_rx_task start %p", mctp_inst);
     while (1) {
-        k_msleep(1000);
+        // k_msleep(1000);
 
         uint8_t read_buf[256] = {0};
         mctp_ext_param ext_param;
@@ -429,7 +429,7 @@ uint8_t mctp_start(mctp *mctp_inst)
                                             K_THREAD_STACK_SIZEOF(rx_task_stack_area),
                                             mctp_rx_task,
                                             mctp_inst, NULL, NULL,
-                                            7, 0, K_MSEC(1));
+                                            K_PRIO_PREEMPT(10), 0, K_MSEC(1));
     if (!mctp_inst->mctp_rx_task_tid)
         goto error;
     k_thread_name_set(mctp_inst->mctp_rx_task_tid, mctp_inst->mctp_rx_task_name);
@@ -440,7 +440,7 @@ uint8_t mctp_start(mctp *mctp_inst)
                                             K_THREAD_STACK_SIZEOF(tx_task_stack_area),
                                             mctp_tx_task,
                                             mctp_inst, NULL, NULL,
-                                            7, 0, K_MSEC(1));
+                                            K_PRIO_PREEMPT(10), 0, K_MSEC(1));
 
     if (!mctp_inst->mctp_tx_task_tid)
         goto error;

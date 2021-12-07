@@ -42,7 +42,7 @@ static mctp_msg_handler cmd_tbl[] = {
 };
 
 static mctp_smbus_port smbus_port[] = {
-	{.conf.smbus_conf.addr = 0xB2, .conf.smbus_conf.bus = 0x01},
+	{.conf.smbus_conf.addr = 0x60, .conf.smbus_conf.bus = 0x06},
 	// {.conf.smbus_conf.addr = 0x20, .conf.smbus_conf.bus = 0x02}
 };
 
@@ -54,6 +54,9 @@ mctp_route_entry mctp_route_tbl[] = {
 	{0x15, 0x01, 0x45},
 	{0x16, 0x02, 0x46}
 };
+
+struct k_thread mctp_test_thread;
+K_KERNEL_STACK_MEMBER(mctp_test_thread_stack, 4000);
 
 static mctp *find_mctp_by_smbus(uint8_t bus)
 {
@@ -130,6 +133,26 @@ static void to_test(void *to_args)
 	LOG_DBG("*i = %d", *i);
 }
 
+void mctp_test_handler(void *arug0, void *arug1, void *arug2){
+
+	k_msleep(2000);
+    while (1) {
+		k_msleep(20);
+
+		mctp_ext_param ext_param = {0};
+		ext_param.type = MCTP_MEDIUM_TYPE_SMBUS;
+		ext_param.smbus_ext_param.addr = 0x80;
+		ext_param.ep = 0x0B;
+
+		pldm_msg msg = {0};
+		msg.hdr.pldm_type = PLDM_TYPE_BASE;
+		msg.hdr.cmd = PLDM_BASE_CMD_CODE_GETTID;
+		msg.hdr.rq = 1;
+
+		mctp_pldm_send_msg(smbus_port[0].mctp_inst, &msg, ext_param, main_gettid, NULL);
+	}
+}
+
 void plat_mctp_init(void)
 {
 	LOG_INF("plat_mctp_init");
@@ -160,4 +183,13 @@ void plat_mctp_init(void)
 
 		mctp_start(p->mctp_inst);
 	}
+
+
+	k_thread_create(&mctp_test_thread, mctp_test_thread_stack,
+					K_THREAD_STACK_SIZEOF(mctp_test_thread_stack),
+					mctp_test_handler,
+					NULL, NULL, NULL,
+					K_PRIO_PREEMPT(10), 0, K_NO_WAIT);
+	k_thread_name_set(&mctp_test_thread, "IPMI_thread");
+
 }

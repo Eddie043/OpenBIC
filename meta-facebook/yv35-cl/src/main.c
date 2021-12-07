@@ -15,6 +15,8 @@
 #include "ipmi.h"
 #include "kcs.h"
 #include "plat_func.h"
+#include "hal_i2c_slave.h"
+#include "plat_i2c_slave.h"
 
 void device_init() {
   adc_init();
@@ -36,15 +38,21 @@ void main(void)
 
   util_init_timer();
   util_init_I2C();
+  
+  /* init i2c slave */
+  for (int index = 0; index < MAX_SLAVE_NUM; index++){
+    if (I2C_SLAVE_EN_TABLE[index])
+      i2c_slave_control(index, &I2C_SLAVE_CFG_TABLE[index], 1);
+  }
 
-  set_sys_config();
-  sensor_init();
-  FRU_init();
-  ipmi_init();
-  kcs_init();
-  usb_dev_init();
-  device_init();
-  set_sys_status();
+  // set_sys_config();
+  // sensor_init();
+  // FRU_init();
+  // ipmi_init();
+  // kcs_init();
+  // usb_dev_init();
+  // device_init();
+  // set_sys_status();
   plat_mctp_init();
 }
 
