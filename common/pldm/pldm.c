@@ -1,5 +1,6 @@
 #include <zephyr.h>
 #include <string.h>
+#include <stdlib.h>
 #include <sys/printk.h>
 #include <sys/slist.h>
 #include <cmsis_os2.h>
@@ -36,14 +37,6 @@ static struct _pldm_handler_query_entry query_tbl[] = {
     {PLDM_TYPE_OEM, pldm_oem_handler_query}
 };
 
-static pldm_t *get_pldm_inst(void *interface)
-{
-    if (!interface)
-        return NULL;
-
-    return CONTAINER_OF(interface, pldm_t, interface);
-}
-
 static uint8_t list_timeout_chk(sys_slist_t *list, struct k_mutex *mutex)
 {
     if (!list || !mutex)
@@ -70,7 +63,7 @@ static uint8_t list_timeout_chk(sys_slist_t *list, struct k_mutex *mutex)
             if (p->to_fn)
                 p->to_fn(p->to_fn_args);
 
-            k_free(p);
+            free(p);
         } else {
             pre_node = node;
         }
@@ -105,7 +98,7 @@ static uint8_t pldm_wait_resp_append(void *mctp_p, uint8_t *buf, uint32_t len, m
     if (!mctp_p || !buf || !len)
         return PLDM_ERROR;
 
-    wait_resp_pldm_msg *msg = (wait_resp_pldm_msg *)k_malloc(sizeof(*msg));
+    wait_resp_pldm_msg *msg = (wait_resp_pldm_msg *)malloc(sizeof(*msg));
     if (!msg) {
         LOG_WRN("malloc FAILED!!");
         return PLDM_ERROR;
@@ -161,21 +154,18 @@ static uint8_t pldm_resp_msg_proc(pldm_t *pldm_inst, uint8_t *buf, uint32_t len,
         wait_resp_pldm_msg *p = (wait_resp_pldm_msg *)found_node;
         if (p->resp_fn)
             p->resp_fn(p->cb_args, buf + sizeof(p->hdr), len - sizeof(p->hdr)); /* remove pldm header for handler */
-        k_free(p);
+        free(p);
     }
 
     return PLDM_SUCCESS;
 }
 
-uint8_t mctp_pldm_cmd_handler(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext_param ext_params)
+uint8_t mctp_pldm_cmd_handler(void *pldm_p, uint8_t *buf, uint32_t len, mctp_ext_param ext_params)
 {
-    if (!mctp_p || !buf || !len)
+    if (!pldm_p || !buf || !len)
         return PLDM_ERROR;
 
-    pldm_t *pldm_inst = get_pldm_inst(mctp_p);
-    if (!pldm_inst)
-        return PLDM_ERROR;
-
+    pldm_t *pldm_inst = (pldm_t *)pldm_p;
     pldm_hdr *hdr = (pldm_hdr *)buf;
     LOG_DBG("msg_type = %d", hdr->msg_type);
     LOG_DBG("req_d_id = 0x%x", hdr->req_d_id);
@@ -231,22 +221,17 @@ send_msg:
     /* send the pldm response data */
     resp_len = sizeof(resp.hdr) + resp.len;
     LOG_DBG("resp_len = %d", resp_len);
-	return mctp_send_msg(mctp_p, (uint8_t *)&resp, resp_len, ext_params);
+	return mctp_send_msg((mctp *)pldm_inst->interface, (uint8_t *)&resp, resp_len, ext_params);
 }
 
-uint8_t mctp_pldm_send_msg_with_timeout(void *mctp_p, pldm_msg *msg, mctp_ext_param ext_param, 
+uint8_t mctp_pldm_send_msg_with_timeout(void *pldm_p, pldm_msg *msg, mctp_ext_param ext_param, 
                         void (*resp_fn)(void *, uint8_t *, uint16_t), void *cb_args,
                         uint16_t timeout_ms, void (*to_fn)(void *), void *to_fn_args)
 {
-    if (!mctp_p || !msg)
+    if (!pldm_p || !msg)
         return PLDM_ERROR;
 
-    pldm_t *pldm_inst = get_pldm_inst(mctp_p);
-    if (!pldm_inst) {
-        LOG_WRN("can't get pldm inst by mctp %p\n", mctp_p);
-        return PLDM_ERROR;
-    }
-
+    pldm_t *pldm_inst = (pldm_t *)pldm_p;
 
     /* the request should be set inst_id/msg_type/mctp_tag_owner in the header */
     if (msg->hdr.rq) {
@@ -265,7 +250,7 @@ uint8_t mctp_pldm_send_msg_with_timeout(void *mctp_p, pldm_msg *msg, mctp_ext_pa
     LOG_DBG("msg->hdr.pldm_type = %x", msg->hdr.pldm_type);
     LOG_DBG("msg->hdr.cmd = %x", msg->hdr.cmd);
     LOG_HEXDUMP_DBG((uint8_t *)msg, send_len, "pldm data");
-	uint8_t rc = mctp_send_msg(mctp_p, (uint8_t *)msg, send_len, ext_param);
+	uint8_t rc = mctp_send_msg((mctp *)pldm_inst->interface, (uint8_t *)msg, send_len, ext_param);
 
     if (rc == MCTP_ERROR) {
         LOG_WRN("mctp_send_msg error!!");
@@ -274,9 +259,9 @@ uint8_t mctp_pldm_send_msg_with_timeout(void *mctp_p, pldm_msg *msg, mctp_ext_pa
 
     if (msg->hdr.rq) {
         /* if the msg is sending request, should store the msg/resp_fn/cb_args, which are used to handle the response data */
-        wait_resp_pldm_msg *wait_msg = (wait_resp_pldm_msg *)k_malloc(sizeof(*wait_msg));
+        wait_resp_pldm_msg *wait_msg = (wait_resp_pldm_msg *)malloc(sizeof(*wait_msg));
         if (!wait_msg) {
-            LOG_WRN("malloc FAILED!!");
+            printk("malloc FAILED!!\n");
             return PLDM_ERROR;
         }
         memset(wait_msg, 0, sizeof(*wait_msg));
@@ -301,15 +286,15 @@ uint8_t mctp_pldm_send_msg_with_timeout(void *mctp_p, pldm_msg *msg, mctp_ext_pa
 }
 
 /* send the pldm cmd through mctp */
-uint8_t mctp_pldm_send_msg(void *mctp_p, pldm_msg *msg, mctp_ext_param ext_param, 
+uint8_t mctp_pldm_send_msg(void *pldm_p, pldm_msg *msg, mctp_ext_param ext_param, 
                         void (*resp_fn)(void *, uint8_t *, uint16_t), void *cb_args)
 {
-    return mctp_pldm_send_msg_with_timeout(mctp_p, msg, ext_param, resp_fn, cb_args, 0, NULL, NULL);
+    return mctp_pldm_send_msg_with_timeout(pldm_p, msg, ext_param, resp_fn, cb_args, 0, NULL, NULL);
 }
 
 pldm_t *pldm_init(void *interface)
 {
-    pldm_t *pldm_inst = (pldm_t *)k_malloc(sizeof(*pldm_inst));
+    pldm_t *pldm_inst = (pldm_t *)malloc(sizeof(*pldm_inst));
     if (!pldm_inst) {
         LOG_WRN("can't alloc pldm_inst!!");
         goto err;
@@ -345,7 +330,7 @@ pldm_t *pldm_init(void *interface)
 
 err:
     if (pldm_inst)
-        k_free(pldm_inst);
+        free(pldm_inst);
     return PLDM_SUCCESS;
 }
 

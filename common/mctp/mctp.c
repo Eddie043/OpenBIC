@@ -136,7 +136,7 @@ static uint8_t mctp_pkt_assembling(mctp *mctp_inst, uint8_t *buf, uint16_t len)
             free(*buf_p);
         *ofs_p = 0;
 
-        *buf_p = (uint8_t *)k_malloc(MSG_ASSEMBLY_BUF_SIZE);
+        *buf_p = (uint8_t *)malloc(MSG_ASSEMBLY_BUF_SIZE);
         if (!*buf_p) {
             LOG_WRN("cannot create memory...\n");
             return MCTP_ERROR;
@@ -217,7 +217,7 @@ static void mctp_rx_task(void *arg, void *dummy0, void *dummy1)
         }
 
         if (mctp_inst->temp_msg_buf[hdr->msg_tag].buf) {
-            k_free(mctp_inst->temp_msg_buf[hdr->msg_tag].buf);
+            free(mctp_inst->temp_msg_buf[hdr->msg_tag].buf);
             mctp_inst->temp_msg_buf[hdr->msg_tag].buf = NULL;
         }
 
@@ -252,7 +252,7 @@ static void mctp_tx_task(void *arg, void *dummy0, void *dummy1)
             continue;
 
         if (!mctp_msg.len) {
-            k_free(mctp_msg.buf);
+            free(mctp_msg.buf);
             continue;
         }
 
@@ -263,7 +263,7 @@ static void mctp_tx_task(void *arg, void *dummy0, void *dummy1)
         /* bridge message also doesn't need to split packet */
         if (mctp_msg.is_bridge_packet) {
             mctp_inst->write_data(mctp_inst, mctp_msg.buf, mctp_msg.len, mctp_msg.ext_param);
-            k_free(mctp_msg.buf);
+            free(mctp_msg.buf);
             continue;
         }
 
@@ -309,7 +309,7 @@ static void mctp_tx_task(void *arg, void *dummy0, void *dummy1)
             mctp_inst->write_data(mctp_inst, buf, cp_msg_size + MCTP_TRANSPORT_HEADER_SIZE, mctp_msg.ext_param);
         }
 
-        k_free(mctp_msg.buf);
+        free(mctp_msg.buf);
         
         /* only request mctp message needs to increase msg_tag */
         if (mctp_msg.ext_param.tag_owner)
@@ -320,7 +320,7 @@ static void mctp_tx_task(void *arg, void *dummy0, void *dummy1)
 /* mctp handle initial */
 mctp *mctp_init(void)
 {
-    mctp *mctp_inst = (mctp *)k_malloc(sizeof(*mctp_inst));
+    mctp *mctp_inst = (mctp *)malloc(sizeof(*mctp_inst));
     
     if (!mctp_inst)
         return NULL;
@@ -345,7 +345,7 @@ uint8_t mctp_deinit(mctp *mctp_inst)
     mctp_stop(mctp_inst);
     mctp_medium_deinit(mctp_inst);
     
-    k_free(mctp_inst);
+    free(mctp_inst);
     return MCTP_SUCCESS;
 }
 
@@ -395,7 +395,7 @@ uint8_t mctp_stop(mctp *mctp_inst)
     }
 
     if (mctp_inst->mctp_tx_queue.buffer_start) {
-        k_free(mctp_inst->mctp_tx_queue.buffer_start);
+        free(mctp_inst->mctp_tx_queue.buffer_start);
         mctp_inst->mctp_tx_queue.buffer_start = NULL;
     }
 
@@ -415,7 +415,7 @@ uint8_t mctp_start(mctp *mctp_inst)
 
     set_thread_name(mctp_inst);
 
-    uint8_t *msgq_buf = (uint8_t *)k_malloc(MCTP_TX_QUEUE_SIZE * sizeof(mctp_tx_msg));
+    uint8_t *msgq_buf = (uint8_t *)malloc(MCTP_TX_QUEUE_SIZE * sizeof(mctp_tx_msg));
     if (!msgq_buf) {
         LOG_WRN("msgq alloc failed!!");
         goto error;
@@ -468,7 +468,7 @@ uint8_t mctp_bridge_msg(mctp *mctp_inst, uint8_t *buf, uint16_t len, mctp_ext_pa
     mctp_tx_msg mctp_msg = {0};
     mctp_msg.is_bridge_packet = 1;
     mctp_msg.len = len;
-    mctp_msg.buf = (uint8_t *)k_malloc(len);
+    mctp_msg.buf = (uint8_t *)malloc(len);
     if (!mctp_msg.buf)
         goto error;
     memcpy(mctp_msg.buf, buf, len);
@@ -481,7 +481,7 @@ uint8_t mctp_bridge_msg(mctp *mctp_inst, uint8_t *buf, uint16_t len, mctp_ext_pa
 
 error:
     if (mctp_msg.buf)
-        k_free(mctp_msg.buf);
+        free(mctp_msg.buf);
 
     return MCTP_ERROR;
 }
@@ -498,11 +498,12 @@ uint8_t mctp_send_msg(mctp *mctp_inst, uint8_t *buf, uint16_t len, mctp_ext_para
 
     mctp_tx_msg mctp_msg = {0};
     mctp_msg.len = len;
-    mctp_msg.buf = (uint8_t *)k_malloc(len);
+    mctp_msg.buf = (uint8_t *)malloc(len);
     if (!mctp_msg.buf) {
         LOG_WRN("can't alloc buf!!");
         goto error;
     }
+    
     memcpy(mctp_msg.buf, buf, len);
     mctp_msg.ext_param = ext_param;
 
@@ -512,7 +513,7 @@ uint8_t mctp_send_msg(mctp *mctp_inst, uint8_t *buf, uint16_t len, mctp_ext_para
 
 error:
     if (mctp_msg.buf)
-        k_free(mctp_msg.buf);
+        free(mctp_msg.buf);
 
     return MCTP_ERROR;
 }
