@@ -212,11 +212,10 @@ uint8_t mctp_pldm_cmd_handler(void *pldm_p, uint8_t *buf, uint32_t len, mctp_ext
     }
     
     /* invoke the cmd handler to process */
-    rc = handler(buf + sizeof(*hdr), len - sizeof(*hdr), resp.buf, &resp.len);
-#if 0
+    rc = handler(pldm_inst, buf + sizeof(*hdr), len - sizeof(*hdr), resp.buf, &resp.len);
     if (rc == PLDM_LATER_RESP)
-        return pldm_wait_resp_append(mctp_p, buf, len, ext_params);
-#endif
+        return PLDM_SUCCESS;
+
 send_msg:
     /* send the pldm response data */
     resp_len = sizeof(resp.hdr) + resp.len;
@@ -292,7 +291,7 @@ uint8_t mctp_pldm_send_msg(void *pldm_p, pldm_msg *msg, mctp_ext_param ext_param
     return mctp_pldm_send_msg_with_timeout(pldm_p, msg, ext_param, resp_fn, cb_args, 0, NULL, NULL);
 }
 
-pldm_t *pldm_init(void *interface)
+pldm_t *pldm_init(void *interface, uint8_t user_idx)
 {
     pldm_t *pldm_inst = (pldm_t *)malloc(sizeof(*pldm_inst));
     if (!pldm_inst) {
@@ -325,6 +324,7 @@ pldm_t *pldm_init(void *interface)
     }
 
     pldm_inst->interface = interface;
+    pldm_inst->user_idx = user_idx;
 
     return pldm_inst;
 

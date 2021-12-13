@@ -19,10 +19,17 @@ LOG_MODULE_REGISTER(plat_mctp);
 #define MCTP_IC_SHIFT 7
 #define MCTP_IC_MASK 0x80
 
+typedef enum {
+    PLDM_INTERFACE_E_UNKNOWN = 0x0,
+    PLDM_INTERFACE_E_BMC,
+    PLDM_INTERFACE_E_MAX
+} PLDM_INTERFACE_E;
+
 typedef struct _mctp_smbus_port {
     mctp *mctp_inst;
     pldm_t *pldm_inst;
     mctp_medium_conf conf;
+    uint8_t user_idx;
 } mctp_smbus_port;
 
 /* mctp route entry struct */
@@ -36,13 +43,13 @@ typedef struct _mctp_msg_handler {
     MCTP_MSG_TYPE type;
     mctp_fn_cb msg_handler_cb;
 } mctp_msg_handler;
-
+#if 0
 static mctp_msg_handler cmd_tbl[] = {
     {MCTP_MSG_TYPE_PLDM, mctp_pldm_cmd_handler}
 };
-
+#endif
 static mctp_smbus_port smbus_port[] = {
-    {.conf.smbus_conf.addr = 0x60, .conf.smbus_conf.bus = 0x06},
+    {.conf.smbus_conf.addr = 0x40, .conf.smbus_conf.bus = 0x06, .user_idx = PLDM_INTERFACE_E_BMC},
     // {.conf.smbus_conf.addr = 0x20, .conf.smbus_conf.bus = 0x02}
 };
 
@@ -121,7 +128,7 @@ static uint8_t mctp_msg_recv(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext_
     return MCTP_SUCCESS;
 }
 
-static uint8_t get_route_info(uint8_t dest_endpoint, void **mctp_inst, mctp_ext_param *ext_params)
+static uint8_t get_mctp_route_info(uint8_t dest_endpoint, void **mctp_inst, mctp_ext_param *ext_params)
 {
     if (!mctp_inst || !ext_params)
         return MCTP_ERROR;
@@ -155,7 +162,6 @@ static void to_test(void *to_args)
 }
 
 void mctp_test_handler(void *arug0, void *arug1, void *arug2){
-
     k_msleep(2000);
     while (1) {
         k_msleep(20);
@@ -193,10 +199,10 @@ void plat_mctp_init(void)
         uint8_t rc = mctp_set_medium_configure(p->mctp_inst, MCTP_MEDIUM_TYPE_SMBUS, p->conf);
         LOG_DBG("mctp_set_medium_configure %s", (rc == MCTP_SUCCESS)? "success": "failed");
 
-        mctp_reg_endpoint_resolve_func(p->mctp_inst, get_route_info);
+        mctp_reg_endpoint_resolve_func(p->mctp_inst, get_mctp_route_info);
         mctp_reg_msg_rx_func(p->mctp_inst, mctp_msg_recv);
         
-        p->pldm_inst = pldm_init(p->mctp_inst);
+        p->pldm_inst = pldm_init(p->mctp_inst, p->user_idx);
         if (!p->pldm_inst) {
             LOG_ERR("pldm_init failed!!");
             continue;
@@ -204,11 +210,12 @@ void plat_mctp_init(void)
 
         mctp_start(p->mctp_inst);
     }
-
+#if 0
     k_thread_create(&mctp_test_thread, mctp_test_thread_stack,
                     K_THREAD_STACK_SIZEOF(mctp_test_thread_stack),
                     mctp_test_handler,
                     NULL, NULL, NULL,
                     K_PRIO_PREEMPT(10), 0, K_NO_WAIT);
     k_thread_name_set(&mctp_test_thread, "IPMI_thread");
+#endif
 }

@@ -9,9 +9,9 @@
 
 LOG_MODULE_DECLARE(pldm);
 
-uint8_t set_tid(uint8_t *buf, uint16_t len, uint8_t *resp, uint16_t *resp_len)
+uint8_t set_tid(void *pldm_inst, uint8_t *buf, uint16_t len, uint8_t *resp, uint16_t *resp_len)
 {
-    if (!buf || !resp || !resp_len)
+    if (!pldm_inst || !buf || !resp || !resp_len)
         return PLDM_ERROR;
     
     struct _set_tid_req *req_p = (struct _set_tid_req *)buf;
@@ -22,9 +22,9 @@ uint8_t set_tid(uint8_t *buf, uint16_t len, uint8_t *resp, uint16_t *resp_len)
     return PLDM_SUCCESS;
 }
 
-uint8_t get_tid(uint8_t *buf, uint16_t len, uint8_t *resp, uint16_t *resp_len)
+uint8_t get_tid(void *pldm_inst, uint8_t *buf, uint16_t len, uint8_t *resp, uint16_t *resp_len)
 {
-    if (!buf || !resp || !resp_len)
+    if (!pldm_inst || !buf || !resp || !resp_len)
         return PLDM_ERROR;
 
     struct _get_tid_resp *p = (struct _get_tid_resp *)resp;

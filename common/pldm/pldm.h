@@ -30,7 +30,7 @@ extern "C" {
 
 #define PLDM_MAX_DATA_SIZE 256
 
-typedef uint8_t (*pldm_cmd_proc_fn)(uint8_t *, uint16_t, uint8_t *, uint16_t *);
+typedef uint8_t (*pldm_cmd_proc_fn)(void *, uint8_t *, uint16_t, uint8_t *, uint16_t *);
 
 typedef enum {
     PLDM_TYPE_BASE = 0x00,
@@ -90,6 +90,7 @@ typedef struct _pldm {
     struct k_mutex wait_send_resp_list_mutex;
 
     void *interface; /* the pldm module over which interface, as mctp */
+    uint8_t user_idx; /* the alias index for this pldm instance from application layer */
 } pldm_t;
 
 /* the pldm command handler */
@@ -104,7 +105,7 @@ uint8_t mctp_pldm_send_msg_with_timeout(void *pldm_p, pldm_msg *msg, mctp_ext_pa
 uint8_t mctp_pldm_send_msg(void *pldm_p, pldm_msg *msg, mctp_ext_param ext_param, 
                         void (*resp_fn)(void *, uint8_t *, uint16_t), void *cb_args);
 
-pldm_t *pldm_init(void *interface);
+pldm_t *pldm_init(void *interface, uint8_t user_idx);
 
 #ifdef __cplusplus
 }

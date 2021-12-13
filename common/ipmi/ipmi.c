@@ -261,6 +261,8 @@ ipmi_error IPMI_handler(void *arug0, void *arug1, void *arug2)
         USB_write(&msg_cfg.buffer);
       } else if (msg_cfg.buffer.InF_source == HOST_KCS_IFs) {
         ;
+      } else if (msg_cfg.buffer.InF_source == PLDM_IFs) {
+        ;
       } else {
         status = ipmb_send_response(&msg_cfg.buffer, IPMB_inf_index_map[msg_cfg.buffer.InF_source]);
         if (status != ipmb_error_success) {
