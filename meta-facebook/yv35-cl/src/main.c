@@ -45,14 +45,14 @@ void main(void)
       i2c_slave_control(index, &I2C_SLAVE_CFG_TABLE[index], 1);
   }
 
-  // set_sys_config();
-  // sensor_init();
-  // FRU_init();
-  // ipmi_init();
-  // kcs_init();
-  // usb_dev_init();
-  // device_init();
-  // set_sys_status();
+  set_sys_config();
+  sensor_init();
+  FRU_init();
+  ipmi_init();
+  kcs_init();
+  usb_dev_init();
+  device_init();
+  set_sys_status();
   plat_mctp_init();
 }
 

@@ -15,7 +15,7 @@ extern "C" {
 #define PLDM_BASE_CMD_CODE_GET_PLDM_TYPE 0x04
 #define PLDM_BASE_CMD_CODE_GET_PLDM_CMDS 0x05
 
-#define DEFAULT_TID 0x40
+#define DEFAULT_TID 0x86
 
 struct _set_tid_req {
     uint8_t tid;

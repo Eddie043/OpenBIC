@@ -212,7 +212,7 @@ uint8_t mctp_pldm_cmd_handler(void *pldm_p, uint8_t *buf, uint32_t len, mctp_ext
     }
     
     /* invoke the cmd handler to process */
-    rc = handler(pldm_inst, buf + sizeof(*hdr), len - sizeof(*hdr), resp.buf, &resp.len);
+    rc = handler(pldm_inst, buf + sizeof(*hdr), len - sizeof(*hdr), resp.buf, &resp.len, &ext_params);
     if (rc == PLDM_LATER_RESP)
         return PLDM_SUCCESS;
 

@@ -152,7 +152,7 @@ static uint8_t get_mctp_route_info(uint8_t dest_endpoint, void **mctp_inst, mctp
 
 static void main_gettid(void *args, uint8_t *buf, uint16_t len)
 {
-    LOG_WRN("main_gettid");
+    LOG_HEXDUMP_WRN(buf, len, "ipmi over pldm resp");
 }
 
 static void to_test(void *to_args)
@@ -163,20 +163,44 @@ static void to_test(void *to_args)
 
 void mctp_test_handler(void *arug0, void *arug1, void *arug2){
     k_msleep(2000);
-    while (1) {
-        k_msleep(20);
 
+    while (1) {
+        k_msleep(1000);
+
+        pldm_cmd_proc_fn handler = NULL;
+        pldm_oem_handler_query(PLDM_OEM_IPMI_BRIDGE, (void **)&handler);
+        printk("%s:%s:%d\n", __FILE__, __func__, __LINE__);
+        if (handler) {
+            pldm_msg resp = {0};
+            mctp_ext_param ext_params;
+            uint8_t ipmi_buf[] = {0x0a, 0x0b, 0x0c, 0x0d, 0x06, 0x01};
+
+            memset(&ext_params, 0, sizeof(ext_params));
+            ext_params.ep = 0x08;
+            ext_params.msg_tag = 0x05;
+            ext_params.type = MCTP_MEDIUM_TYPE_SMBUS;
+            ext_params.smbus_ext_param.addr = 0x20;
+
+            printk("%s:%s:%d\n", __FILE__, __func__, __LINE__);
+            handler(smbus_port[0].pldm_inst, ipmi_buf + sizeof(pldm_hdr), sizeof(ipmi_buf) - sizeof(pldm_hdr), resp.buf, &resp.len, &ext_params);
+        }
+#if 0
         mctp_ext_param ext_param = {0};
         ext_param.type = MCTP_MEDIUM_TYPE_SMBUS;
-        ext_param.smbus_ext_param.addr = 0x80;
-        ext_param.ep = 0x0B;
+        ext_param.smbus_ext_param.addr = 0x20;
+        ext_param.ep = 0x08;
 
         pldm_msg msg = {0};
-        msg.hdr.pldm_type = PLDM_TYPE_BASE;
-        msg.hdr.cmd = PLDM_BASE_CMD_CODE_GETTID;
+        msg.hdr.pldm_type = PLDM_TYPE_OEM;
+        msg.hdr.cmd = PLDM_OEM_IPMI_BRIDGE;
         msg.hdr.rq = 1;
+        struct _ipmi_cmd_req *req = (struct _ipmi_cmd_req *)msg.buf;
+        req->netfn = 0x06 << 2;
+        req->cmd = 0x01;
+        msg.len = 2;
 
         mctp_pldm_send_msg(smbus_port[0].pldm_inst, &msg, ext_param, main_gettid, NULL);
+#endif
     }
 }
 

@@ -30,7 +30,7 @@ extern "C" {
 
 #define PLDM_MAX_DATA_SIZE 256
 
-typedef uint8_t (*pldm_cmd_proc_fn)(void *, uint8_t *, uint16_t, uint8_t *, uint16_t *);
+typedef uint8_t (*pldm_cmd_proc_fn)(void *, uint8_t *, uint16_t, uint8_t *, uint16_t *, void *);
 
 typedef enum {
     PLDM_TYPE_BASE = 0x00,

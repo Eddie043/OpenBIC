@@ -22,7 +22,7 @@ struct _cmd_echo_resp {
 } __attribute__((packed));
 
 struct _ipmi_cmd_req {
-    uint8_t interface;
+    /* uint8_t interface; */
     uint8_t netfn;
     uint8_t cmd;
     uint8_t first_data;
@@ -30,9 +30,9 @@ struct _ipmi_cmd_req {
 
 struct _ipmi_cmd_resp {
     uint8_t completion_code;
-    uint8_t interface;
     uint8_t netfn;
     uint8_t cmd;
+    uint8_t ipmi_comp_code;
     uint8_t first_data;
 } __attribute__((packed));
 

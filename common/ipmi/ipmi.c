@@ -2,8 +2,13 @@
 #include <kernel.h>
 #include <stdio.h>
 #include "cmsis_os2.h"
+#include <logging/log.h>
 #include "ipmi.h"
 #include <string.h>
+#include "mctp.h"
+#include "pldm.h"
+
+LOG_MODULE_REGISTER(ipmi);
 #define IPMI_QUEUE_SIZE 5
 
 struct k_thread IPMI_thread;
@@ -12,177 +17,226 @@ K_KERNEL_STACK_MEMBER(IPMI_thread_stack, IPMI_THREAD_STACK_SIZE);
 char __aligned(4) ipmi_msgq_buffer[ipmi_buf_len * sizeof(struct ipmi_msg_cfg)];
 struct k_msgq ipmi_msgq;
 
+static uint8_t send_msg_by_pldm(ipmi_msg_cfg *msg_cfg)
+{
+    if (!msg_cfg)
+        return 0;
+
+    /* get the mctp/pldm for sending response from buffer */
+    uint16_t pldm_hdr_ofs = sizeof(msg_cfg->buffer.data) - sizeof(pldm_hdr);
+    uint16_t mctp_ext_param_ofs = pldm_hdr_ofs - sizeof(mctp_ext_param);
+    uint16_t pldm_inst_ofs = mctp_ext_param_ofs - 4;
+
+    /* get the pldm_inst */
+    pldm_t *pldm_inst;
+    memcpy(&pldm_inst, msg_cfg->buffer.data + pldm_inst_ofs, 4);
+    LOG_INF("pldm_inst = %p", pldm_inst);
+
+    LOG_HEXDUMP_INF(msg_cfg->buffer.data + mctp_ext_param_ofs, sizeof(mctp_ext_param), "mctp ext param");
+
+    /* get the pldm hdr for response */
+    pldm_hdr *hdr = (pldm_hdr *)(msg_cfg->buffer.data + pldm_hdr_ofs);
+    LOG_HEXDUMP_INF(msg_cfg->buffer.data + pldm_hdr_ofs, sizeof(pldm_hdr), "pldm header");
+
+    /* make response data */
+    pldm_msg resp;
+    memset(&resp, 0, sizeof(resp));
+
+    /* pldm header */
+    resp.hdr = *hdr;
+    resp.hdr.rq = 0;
+
+    LOG_DBG("msg_cfg->buffer.data_len = %d", msg_cfg->buffer.data_len);
+    LOG_DBG("msg_cfg->buffer.completion_code = %x", msg_cfg->buffer.completion_code);
+
+    /* setup ipmi response data of pldm */
+    struct _ipmi_cmd_resp *cmd_resp = (struct _ipmi_cmd_resp *)resp.buf;
+    cmd_resp->completion_code = PLDM_BASE_CODES_SUCCESS;
+    cmd_resp->netfn = (msg_cfg->buffer.netfn | 0x01) << 2;
+    cmd_resp->cmd = msg_cfg->buffer.cmd;
+    cmd_resp->ipmi_comp_code = msg_cfg->buffer.completion_code;
+    memcpy(&cmd_resp->first_data, msg_cfg->buffer.data, msg_cfg->buffer.data_len);
+
+    resp.len = sizeof(*cmd_resp) - 1 + msg_cfg->buffer.data_len;
+    uint16_t resp_len = sizeof(resp.hdr) + resp.len;
+    LOG_HEXDUMP_INF(&resp, resp_len, "pldm resp data");
+
+    mctp_ext_param *ext_param = (mctp_ext_param *)(msg_cfg->buffer.data + mctp_ext_param_ofs);
+    mctp_send_msg((mctp *)pldm_inst->interface, (uint8_t *)&resp, resp_len, *ext_param);
+
+    return 1;
+}
+
 __weak bool pal_is_not_return_cmd(uint8_t netfn, uint8_t cmd)
 {
-	return 0;
+    return 0;
 }
 
 void IPMI_CHASSIS_handler(ipmi_msg *msg)
 {
-	switch (msg->cmd) {
-	case CMD_CHASSIS_GET_CHASSIS_STATUS:
-		pal_CHASSIS_GET_CHASSIS_STATUS(msg);
-		break;
-	default:
-		printf("invalid chassis msg netfn: %x, cmd: %x\n", msg->netfn, msg->cmd);
-		msg->data_len = 0;
-		break;
-	}
-	return;
+    switch (msg->cmd) {
+    case CMD_CHASSIS_GET_CHASSIS_STATUS:
+        pal_CHASSIS_GET_CHASSIS_STATUS(msg);
+        break;
+    default:
+        printf("invalid chassis msg netfn: %x, cmd: %x\n", msg->netfn, msg->cmd);
+        msg->data_len = 0;
+        break;
+    }
+    return;
 }
 
 void IPMI_SENSOR_handler(ipmi_msg *msg)
 {
-	switch (msg->cmd) {
-	case CMD_SENSOR_GET_SENSOR_READING:
-		pal_SENSOR_GET_SENSOR_READING(msg);
-		break;
-	default:
-		printf("invalid sensor msg netfn: %x, cmd: %x\n", msg->netfn, msg->cmd);
-		msg->data_len = 0;
-		break;
-	}
-	return;
+    switch (msg->cmd) {
+    case CMD_SENSOR_GET_SENSOR_READING:
+        pal_SENSOR_GET_SENSOR_READING(msg);
+        break;
+    default:
+        printf("invalid sensor msg netfn: %x, cmd: %x\n", msg->netfn, msg->cmd);
+        msg->data_len = 0;
+        break;
+    }
+    return;
 }
 
 void IPMI_APP_handler(ipmi_msg *msg)
 {
-	switch (msg->cmd) {
-	case CMD_APP_GET_DEVICE_ID:
-		pal_APP_GET_DEVICE_ID(msg);
-		break;
-	case CMD_APP_COLD_RESET:
-		break;
-	case CMD_APP_WARM_RESET:
-		pal_APP_WARM_RESET(msg);
-		break;
-	case CMD_APP_GET_SELFTEST_RESULTS:
-		pal_APP_GET_SELFTEST_RESULTS(msg);
-		break;
-	case CMD_APP_GET_SYSTEM_GUID:
-		pal_APP_GET_SYSTEM_GUID(msg);
-		break;
-	case CMD_APP_MASTER_WRITE_READ:
-		pal_APP_MASTER_WRITE_READ(msg);
-		break;
-	default:
-		printf("invalid APP msg netfn: %x, cmd: %x\n", msg->netfn, msg->cmd);
-		msg->data_len = 0;
-		break;
-	}
+    switch (msg->cmd) {
+    case CMD_APP_GET_DEVICE_ID:
+        pal_APP_GET_DEVICE_ID(msg);
+        break;
+    case CMD_APP_COLD_RESET:
+        break;
+    case CMD_APP_WARM_RESET:
+        pal_APP_WARM_RESET(msg);
+        break;
+    case CMD_APP_GET_SELFTEST_RESULTS:
+        pal_APP_GET_SELFTEST_RESULTS(msg);
+        break;
+    case CMD_APP_GET_SYSTEM_GUID:
+        pal_APP_GET_SYSTEM_GUID(msg);
+        break;
+    case CMD_APP_MASTER_WRITE_READ:
+        pal_APP_MASTER_WRITE_READ(msg);
+        break;
+    default:
+        printf("invalid APP msg netfn: %x, cmd: %x\n", msg->netfn, msg->cmd);
+        msg->data_len = 0;
+        break;
+    }
 
-	return;
+    return;
 }
 
 void IPMI_Storage_handler(ipmi_msg *msg)
 {
-	switch (msg->cmd) {
-	case CMD_STORAGE_GET_FRUID_INFO:
-		pal_STORAGE_GET_FRUID_INFO(msg);
-		break;
-	case CMD_STORAGE_READ_FRUID_DATA:
-		pal_STORAGE_READ_FRUID_DATA(msg);
-		break;
-	case CMD_STORAGE_WRITE_FRUID_DATA:
-		pal_STORAGE_WRITE_FRUID_DATA(msg);
-		break;
-	case CMD_STORAGE_RSV_SDR:
-		pal_STORAGE_RSV_SDR(msg);
-		break;
-	case CMD_STORAGE_GET_SDR:
-		pal_STORAGE_GET_SDR(msg);
-		break;
-	default:
-		printf("invalid Storage msg netfn: %x, cmd: %x\n", msg->netfn, msg->cmd);
-		msg->data_len = 0;
-		break;
-	}
-	return;
+    switch (msg->cmd) {
+    case CMD_STORAGE_GET_FRUID_INFO:
+        pal_STORAGE_GET_FRUID_INFO(msg);
+        break;
+    case CMD_STORAGE_READ_FRUID_DATA:
+        pal_STORAGE_READ_FRUID_DATA(msg);
+        break;
+    case CMD_STORAGE_WRITE_FRUID_DATA:
+        pal_STORAGE_WRITE_FRUID_DATA(msg);
+        break;
+    case CMD_STORAGE_RSV_SDR:
+        pal_STORAGE_RSV_SDR(msg);
+        break;
+    case CMD_STORAGE_GET_SDR:
+        pal_STORAGE_GET_SDR(msg);
+        break;
+    default:
+        printf("invalid Storage msg netfn: %x, cmd: %x\n", msg->netfn, msg->cmd);
+        msg->data_len = 0;
+        break;
+    }
+    return;
 }
 
 
 void IPMI_OEM_handler(ipmi_msg *msg)
 {
-	switch (msg->cmd) {
-	case CMD_OEM_SET_SYSTEM_GUID:
-		pal_OEM_SET_SYSTEM_GUID(msg);
-		break;
-	default:
-		printf("invalid OEM msg netfn: %x, cmd: %x\n", msg->netfn, msg->cmd);
-		msg->data_len = 0;
-		break;
-	}
-	return;
+    switch (msg->cmd) {
+    case CMD_OEM_SET_SYSTEM_GUID:
+        pal_OEM_SET_SYSTEM_GUID(msg);
+        break;
+    default:
+        printf("invalid OEM msg netfn: %x, cmd: %x\n", msg->netfn, msg->cmd);
+        msg->data_len = 0;
+        break;
+    }
+    return;
 }
 
 void IPMI_OEM_1S_handler(ipmi_msg *msg)
 {
-	switch (msg->cmd) {
-	case CMD_OEM_MSG_IN:
-		break;
-	case CMD_OEM_MSG_OUT:
-		pal_OEM_MSG_OUT(msg);
-		break;
-	case CMD_OEM_GET_GPIO:
-		pal_OEM_GET_GPIO(msg);
-		break;
-	case CMD_OEM_SET_GPIO:
-		pal_OEM_SET_GPIO(msg);
-		break;
-	case CMD_OEM_GET_GPIO_CONFIG:
-		break;
-	case CMD_OEM_SET_GPIO_CONFIG:
-		break;
-	case CMD_OEM_SEND_INTERRUPT_TO_BMC:
-		pal_OEM_SEND_INTERRUPT_TO_BMC(msg);
-		break;
-	case CMD_OEM_FW_UPDATE:
-		pal_OEM_FW_UPDATE(msg);
-		break;
-	case CMD_OEM_GET_FW_VERSION:
-		pal_OEM_GET_FW_VERSION(msg);
-		break;
+    switch (msg->cmd) {
+    case CMD_OEM_MSG_IN:
+        break;
+    case CMD_OEM_MSG_OUT:
+        pal_OEM_MSG_OUT(msg);
+        break;
+    case CMD_OEM_GET_GPIO:
+        pal_OEM_GET_GPIO(msg);
+        break;
+    case CMD_OEM_SET_GPIO:
+        pal_OEM_SET_GPIO(msg);
+        break;
+    case CMD_OEM_GET_GPIO_CONFIG:
+        break;
+    case CMD_OEM_SET_GPIO_CONFIG:
+        break;
+    case CMD_OEM_SEND_INTERRUPT_TO_BMC:
+        pal_OEM_SEND_INTERRUPT_TO_BMC(msg);
+        break;
+    case CMD_OEM_FW_UPDATE:
+        pal_OEM_FW_UPDATE(msg);
+        break;
+    case CMD_OEM_GET_FW_VERSION:
+        pal_OEM_GET_FW_VERSION(msg);
+        break;
   case CMD_OEM_PECIaccess:
     pal_OEM_PECIaccess(msg);
     break;
   case CMD_OEM_GET_POST_CODE:
     pal_OEM_GET_POST_CODE(msg);
     break;
-	case CMD_OEM_SET_JTAG_TAP_STA:
-		pal_OEM_SET_JTAG_TAP_STA(msg);
-		break;
-	case CMD_OEM_JTAG_DATA_SHIFT:
-		pal_OEM_JTAG_DATA_SHIFT(msg);
-		break;
-	case CMD_OEM_SENSOR_POLL_EN:
-		pal_OEM_SENSOR_POLL_EN(msg);
-	case CMD_OEM_ACCURACY_SENSNR:
-		pal_OEM_ACCURACY_SENSNR(msg);
-		break;
-	case CMD_OEM_GET_SET_GPIO:
-		pal_OEM_GET_SET_GPIO(msg);
-		break;
-	case CMD_OEM_I2C_DEV_SCAN: // debug command
-		pal_OEM_I2C_DEV_SCAN(msg);
-		break;
-	default:
-		printf("invalid OEM msg netfn: %x, cmd: %x\n", msg->netfn, msg->cmd);
-		msg->data_len = 0;
-		break;
+    case CMD_OEM_SET_JTAG_TAP_STA:
+        pal_OEM_SET_JTAG_TAP_STA(msg);
+        break;
+    case CMD_OEM_JTAG_DATA_SHIFT:
+        pal_OEM_JTAG_DATA_SHIFT(msg);
+        break;
+    case CMD_OEM_SENSOR_POLL_EN:
+        pal_OEM_SENSOR_POLL_EN(msg);
+    case CMD_OEM_ACCURACY_SENSNR:
+        pal_OEM_ACCURACY_SENSNR(msg);
+        break;
+    case CMD_OEM_GET_SET_GPIO:
+        pal_OEM_GET_SET_GPIO(msg);
+        break;
+    case CMD_OEM_I2C_DEV_SCAN: // debug command
+        pal_OEM_I2C_DEV_SCAN(msg);
+        break;
+    default:
+        printf("invalid OEM msg netfn: %x, cmd: %x\n", msg->netfn, msg->cmd);
+        msg->data_len = 0;
+        break;
 
-	}
-	return;
+    }
+    return;
 }
 
 ipmi_error IPMI_handler(void *arug0, void *arug1, void *arug2)
 {
-	uint8_t i;
+    uint8_t i;
   ipmi_msg_cfg msg_cfg;
 
   while(1) {
 
     k_msgq_get(&ipmi_msgq, &msg_cfg, K_FOREVER);
-
     if (DEBUG_IPMI) {
       printf("IPMI_handler[%d]: netfn: %x\n", msg_cfg.buffer.data_len, msg_cfg.buffer.netfn);
       for (i = 0; i < msg_cfg.buffer.data_len; i++) {
@@ -239,7 +293,7 @@ ipmi_error IPMI_handler(void *arug0, void *arug1, void *arug2)
         msg_cfg.buffer.data_len = 0;
         break;
     }
-
+    
     if (pal_is_not_return_cmd(msg_cfg.buffer.netfn, msg_cfg.buffer.cmd)) {
       ;
     } else {
@@ -262,7 +316,8 @@ ipmi_error IPMI_handler(void *arug0, void *arug1, void *arug2)
       } else if (msg_cfg.buffer.InF_source == HOST_KCS_IFs) {
         ;
       } else if (msg_cfg.buffer.InF_source == PLDM_IFs) {
-        ;
+        /* the message should be passed to bmc by pldm format */
+        send_msg_by_pldm(&msg_cfg);
       } else {
         status = ipmb_send_response(&msg_cfg.buffer, IPMB_inf_index_map[msg_cfg.buffer.InF_source]);
         if (status != ipmb_error_success) {
@@ -288,6 +343,6 @@ void ipmi_init(void)
                   osPriorityBelowNormal, 0, K_NO_WAIT);
   k_thread_name_set(&IPMI_thread, "IPMI_thread");
 
-  ipmb_init();
+  // ipmb_init();
 }
 
