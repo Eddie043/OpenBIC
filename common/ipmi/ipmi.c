@@ -51,18 +51,18 @@ static uint8_t send_msg_by_pldm(ipmi_msg_cfg *msg_cfg)
 
     /* setup ipmi response data of pldm */
     struct _ipmi_cmd_resp *cmd_resp = (struct _ipmi_cmd_resp *)resp.buf;
+    set_iana(cmd_resp->iana, sizeof(cmd_resp->iana));
     cmd_resp->completion_code = PLDM_BASE_CODES_SUCCESS;
-    cmd_resp->netfn = (msg_cfg->buffer.netfn | 0x01) << 2;
+    cmd_resp->netfn = msg_cfg->buffer.netfn | 0x01;
     cmd_resp->cmd = msg_cfg->buffer.cmd;
     cmd_resp->ipmi_comp_code = msg_cfg->buffer.completion_code;
     memcpy(&cmd_resp->first_data, msg_cfg->buffer.data, msg_cfg->buffer.data_len);
 
     resp.len = sizeof(*cmd_resp) - 1 + msg_cfg->buffer.data_len;
-    uint16_t resp_len = sizeof(resp.hdr) + resp.len;
-    LOG_HEXDUMP_INF(&resp, resp_len, "pldm resp data");
+    LOG_HEXDUMP_INF(&resp, sizeof(resp.hdr) + resp.len, "pldm resp data");
 
     mctp_ext_param *ext_param = (mctp_ext_param *)(msg_cfg->buffer.data + mctp_ext_param_ofs);
-    mctp_send_msg((mctp *)pldm_inst->interface, (uint8_t *)&resp, resp_len, *ext_param);
+    mctp_pldm_send_msg(pldm_inst, &resp, *ext_param, NULL, NULL);
 
     return 1;
 }

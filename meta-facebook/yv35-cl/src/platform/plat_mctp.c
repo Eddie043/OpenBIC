@@ -173,7 +173,7 @@ void mctp_test_handler(void *arug0, void *arug1, void *arug2){
         if (handler) {
             pldm_msg resp = {0};
             mctp_ext_param ext_params;
-            uint8_t ipmi_buf[] = {0x0a, 0x0b, 0x0c, 0x0d, 0x06, 0x01};
+            uint8_t ipmi_buf[] = {0x0a, 0x0b, 0x0c, 0x0d, 0x15, 0xa0, 0x00, 0x06, 0x01};
 
             memset(&ext_params, 0, sizeof(ext_params));
             ext_params.ep = 0x08;
@@ -208,8 +208,8 @@ void plat_mctp_init(void)
 {
     LOG_INF("plat_mctp_init");
 
-    uint32_t i;
-    for (i = 0; i < ARRAY_SIZE(smbus_port); i++) {
+    /* init the mctp/pldm instance */
+    for (uint8_t i = 0; i < ARRAY_SIZE(smbus_port); i++) {
         mctp_smbus_port *p = smbus_port + i;
         LOG_DBG("smbus port %d", i);
         LOG_DBG("bus = %x, addr = %x", p->conf.smbus_conf.bus, p->conf.smbus_conf.addr);
@@ -234,6 +234,9 @@ void plat_mctp_init(void)
 
         mctp_start(p->mctp_inst);
     }
+
+    /* TODO: init the device endpoint */
+
 #if 0
     k_thread_create(&mctp_test_thread, mctp_test_thread_stack,
                     K_THREAD_STACK_SIZEOF(mctp_test_thread_stack),

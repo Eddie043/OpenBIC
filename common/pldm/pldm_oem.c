@@ -10,6 +10,30 @@
 
 LOG_MODULE_DECLARE(pldm);
 
+uint8_t chk_iana(uint8_t *iana)
+{
+    if (!iana)
+        return PLDM_ERROR;
+
+    for (uint8_t i = 0; i < IANA_LEN; i++) {
+        if (iana[i] != ((FIANA >> (i * 8)) & 0xFF))
+            return PLDM_ERROR;
+    }
+    
+    return PLDM_SUCCESS;
+}
+
+uint8_t set_iana(uint8_t *buf, uint8_t buf_len)
+{
+    if (!buf || buf_len != IANA_LEN)
+        return PLDM_ERROR;
+
+    for (uint8_t i = 0; i < IANA_LEN; i++)
+        buf[i] = (FIANA >> (i * 8)) & 0xFF;
+    
+    return PLDM_SUCCESS;
+}
+
 static uint8_t cmd_echo(void *pldm_inst, uint8_t *buf, uint16_t len, uint8_t *resp, uint16_t *resp_len, void *ext_param)
 {
     if (!pldm_inst || !buf || !resp || !resp_len)
@@ -17,6 +41,13 @@ static uint8_t cmd_echo(void *pldm_inst, uint8_t *buf, uint16_t len, uint8_t *re
 
     struct _cmd_echo_req *req_p = (struct _cmd_echo_req *)buf;
     struct _cmd_echo_resp *resp_p = (struct _cmd_echo_resp *)resp;
+
+    if (chk_iana(req_p->iana) == PLDM_ERROR) {
+        resp_p->completion_code = PLDM_BASE_CODES_ERROR_INVALID_DATA;
+        return PLDM_SUCCESS;
+    }
+
+    set_iana(resp_p->iana, sizeof(resp_p->iana));
     resp_p->completion_code = PLDM_BASE_CODES_SUCCESS;
     memcpy(&resp_p->first_data, &req_p->first_data, len);
     *resp_len = len + 1;
@@ -29,6 +60,15 @@ static uint8_t ipmi_cmd(void *pldm_inst, uint8_t *buf, uint16_t len, uint8_t *re
         return PLDM_ERROR;
 
     struct _ipmi_cmd_req *req_p = (struct _ipmi_cmd_req *)buf;
+    
+    if (chk_iana(req_p->iana) == PLDM_ERROR) {
+        LOG_WRN("iana %08x is uncorret", (uint32_t)req_p->iana);
+        struct _ipmi_cmd_resp *resp_p = (struct _ipmi_cmd_resp *)resp;
+        resp_p->completion_code = PLDM_BASE_CODES_ERROR_INVALID_DATA;
+        set_iana(resp_p->iana, sizeof(resp_p->iana));
+        return PLDM_SUCCESS;
+    }
+
     LOG_INF("ipmi over pldm, len = %d\n", len);
     LOG_INF("netfn %x, cmd %x", req_p->netfn, req_p->cmd);
     LOG_HEXDUMP_INF(buf, len, "ipmi cmd data");
@@ -36,9 +76,9 @@ static uint8_t ipmi_cmd(void *pldm_inst, uint8_t *buf, uint16_t len, uint8_t *re
     ipmi_msg_cfg msg = {0};
 
     /* set up ipmi data */
-    msg.buffer.netfn = req_p->netfn >> 2;
+    msg.buffer.netfn = req_p->netfn;
     msg.buffer.cmd = req_p->cmd;
-    msg.buffer.data_len = len - 2;
+    msg.buffer.data_len = len - sizeof(*req_p) + 1;
     memcpy(msg.buffer.data, &req_p->first_data, msg.buffer.data_len);
 
     /* for ipmi/ipmb service to know the source is pldm */
