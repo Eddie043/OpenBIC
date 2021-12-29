@@ -312,7 +312,7 @@ pldm_t *pldm_init(void *interface, uint8_t user_idx)
 
     pldm_inst->monitor_task = k_thread_create(&pldm_inst->thread_data,
         pldm_inst->monitor_thread_stack,
-        K_THREAD_STACK_SIZEOF(pldm_inst->monitor_thread_stack),
+        K_KERNEL_STACK_SIZEOF(pldm_inst->monitor_thread_stack),
         list_monitor,
         pldm_inst, NULL, NULL,
         7, 0, K_MSEC(10)

@@ -82,7 +82,7 @@ typedef struct _pldm {
     /* pldm message response timeout prcoess resource */
     k_tid_t monitor_task;
     struct k_thread thread_data;
-    K_THREAD_STACK_MEMBER(monitor_thread_stack, MONITOR_THREAD_STACK_SIZE);
+    K_KERNEL_STACK_MEMBER(monitor_thread_stack, MONITOR_THREAD_STACK_SIZE);
 
     /* store the msg that are not yet to receive the response */
     sys_slist_t wait_recv_resp_list;

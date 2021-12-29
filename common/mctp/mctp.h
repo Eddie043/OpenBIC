@@ -130,8 +130,8 @@ typedef struct _mctp {
     k_tid_t mctp_tx_task_tid;
     struct k_thread rx_task_thread_data;
     struct k_thread tx_task_thread_data;
-    K_THREAD_STACK_MEMBER(rx_task_stack_area, MCTP_RX_TASK_STACK_SIZE);
-    K_THREAD_STACK_MEMBER(tx_task_stack_area, MCTP_TX_TASK_STACK_SIZE);
+    K_KERNEL_STACK_MEMBER(rx_task_stack_area, MCTP_RX_TASK_STACK_SIZE);
+    K_KERNEL_STACK_MEMBER(tx_task_stack_area, MCTP_TX_TASK_STACK_SIZE);
     uint8_t mctp_rx_task_name[MCTP_TASK_NAME_LEN];
     uint8_t mctp_tx_task_name[MCTP_TASK_NAME_LEN];
 

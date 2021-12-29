@@ -422,7 +422,7 @@ uint8_t mctp_start(mctp *mctp_inst)
     /* create rx service */
     mctp_inst->mctp_rx_task_tid = k_thread_create(&mctp_inst->rx_task_thread_data,
                                             mctp_inst->rx_task_stack_area,
-                                            K_THREAD_STACK_SIZEOF(mctp_inst->rx_task_stack_area),
+                                            K_KERNEL_STACK_SIZEOF(mctp_inst->rx_task_stack_area),
                                             mctp_rx_task,
                                             mctp_inst, NULL, NULL,
                                             K_PRIO_PREEMPT(10), 0, K_MSEC(1));
@@ -434,7 +434,7 @@ uint8_t mctp_start(mctp *mctp_inst)
     /* create tx service */
     mctp_inst->mctp_tx_task_tid = k_thread_create(&mctp_inst->tx_task_thread_data,
                                             mctp_inst->tx_task_stack_area,
-                                            K_THREAD_STACK_SIZEOF(mctp_inst->tx_task_stack_area),
+                                            K_KERNEL_STACK_SIZEOF(mctp_inst->tx_task_stack_area),
                                             mctp_tx_task,
                                             mctp_inst, NULL, NULL,
                                             K_PRIO_PREEMPT(10), 0, K_MSEC(1));
