@@ -19,6 +19,8 @@ extern "C" {
 #define PLDM_ERROR 1
 #define PLDM_LATER_RESP 2
 
+#define MONITOR_THREAD_STACK_SIZE 1024
+
 /* generic pldm completion codes  */
 #define PLDM_BASE_CODES_SUCCESS 0x00
 #define PLDM_BASE_CODES_ERROR 0x01
@@ -80,6 +82,7 @@ typedef struct _pldm {
     /* pldm message response timeout prcoess resource */
     k_tid_t monitor_task;
     struct k_thread thread_data;
+    K_THREAD_STACK_MEMBER(monitor_thread_stack, MONITOR_THREAD_STACK_SIZE);
 
     /* store the msg that are not yet to receive the response */
     sys_slist_t wait_recv_resp_list;

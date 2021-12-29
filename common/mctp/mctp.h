@@ -15,6 +15,9 @@ extern "C" {
 #define MCTP_SUCCESS 0
 #define MCTP_ERROR 1
 
+#define MCTP_RX_TASK_STACK_SIZE 4096
+#define MCTP_TX_TASK_STACK_SIZE 1024
+
 #define MCTP_TASK_NAME_LEN 32
 #define MCTP_DEFAULT_MSG_MAX_SIZE 64
 #define MCTP_DEFAULT_ENDPOINT 0x0A
@@ -127,6 +130,8 @@ typedef struct _mctp {
     k_tid_t mctp_tx_task_tid;
     struct k_thread rx_task_thread_data;
     struct k_thread tx_task_thread_data;
+    K_THREAD_STACK_MEMBER(rx_task_stack_area, MCTP_RX_TASK_STACK_SIZE);
+    K_THREAD_STACK_MEMBER(tx_task_stack_area, MCTP_TX_TASK_STACK_SIZE);
     uint8_t mctp_rx_task_name[MCTP_TASK_NAME_LEN];
     uint8_t mctp_tx_task_name[MCTP_TASK_NAME_LEN];
 

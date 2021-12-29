@@ -22,6 +22,7 @@ LOG_MODULE_REGISTER(plat_mctp);
 typedef enum {
     PLDM_INTERFACE_E_UNKNOWN = 0x0,
     PLDM_INTERFACE_E_BMC,
+    PLDM_INTERFACE_E_NIC0,
     PLDM_INTERFACE_E_MAX
 } PLDM_INTERFACE_E;
 
@@ -50,16 +51,11 @@ static mctp_msg_handler cmd_tbl[] = {
 #endif
 static mctp_smbus_port smbus_port[] = {
     {.conf.smbus_conf.addr = 0x40, .conf.smbus_conf.bus = 0x06, .user_idx = PLDM_INTERFACE_E_BMC},
-    // {.conf.smbus_conf.addr = 0x20, .conf.smbus_conf.bus = 0x02}
+    {.conf.smbus_conf.addr = 0x40, .conf.smbus_conf.bus = 0x08, .user_idx = PLDM_INTERFACE_E_NIC0}
 };
 
 mctp_route_entry mctp_route_tbl[] = {
-    {0x11, 0x01, 0x41},
-    {0x12, 0x02, 0x42},
-    {0x13, 0x01, 0x43},
-    {0x14, 0x02, 0x44},
-    {0x15, 0x01, 0x45},
-    {0x16, 0x02, 0x46}
+    {0x10, 0x08, 0x32},
 };
 
 struct k_thread mctp_test_thread;
@@ -91,6 +87,34 @@ static pldm_t *find_pldm_by_mctp(void *mctp_p)
 
     return NULL;
 }
+#if 0
+static uint8_t set_dev_ep(void)
+{
+    for (uint8_t i = 0; i < ARRAY_SIZE(mctp_route_tbl); i++) {
+        mctp_route_entry *p = mctp_route_tbl + i;
+
+        for (uint8_t j = 0; j < ARRAY_SIZE(smbus_port); j++) {
+            if (p->bus != smbus_port[j].conf.smbus_conf.bus)
+                continue;
+            
+            /* find the mctp/pldm instance, set endpoint */
+            mctp_ext_param ext_param = {0};
+            ext_param.type = MCTP_MEDIUM_TYPE_SMBUS;
+            ext_param.smbus_ext_param.addr = p->addr;
+
+            pldm_msg msg = {0};
+            msg.hdr.pldm_type = PLDM_TYPE_OEM;
+            msg.hdr.cmd = PLDM_OEM_IPMI_BRIDGE;
+            msg.hdr.rq = 1;
+            struct _ipmi_cmd_req *req = (struct _ipmi_cmd_req *)msg.buf;
+            req->netfn = 0x06 << 2;
+            req->cmd = 0x01;
+            msg.len = 2;
+
+            mctp_pldm_send_msg(smbus_port[0].pldm_inst, &msg, ext_param, main_gettid, NULL);
+    }
+}
+#endif
 
 uint8_t mctp_control_cmd_handler(void *mctp_p, uint8_t src_ep, uint8_t *buf, uint32_t len, mctp_ext_param ext_params)
 {

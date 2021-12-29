@@ -20,10 +20,6 @@ LOG_MODULE_REGISTER(mctp);
 
 #define MSG_ASSEMBLY_BUF_SIZE 1024
 
-#define STACKSIZE 4096
-K_THREAD_STACK_DEFINE(rx_task_stack_area, STACKSIZE);
-K_THREAD_STACK_DEFINE(tx_task_stack_area, STACKSIZE);
-
 typedef struct __attribute__((packed)) {
     uint8_t hdr_ver;
     uint8_t dest_ep;
@@ -425,19 +421,20 @@ uint8_t mctp_start(mctp *mctp_inst)
 
     /* create rx service */
     mctp_inst->mctp_rx_task_tid = k_thread_create(&mctp_inst->rx_task_thread_data,
-                                            rx_task_stack_area,
-                                            K_THREAD_STACK_SIZEOF(rx_task_stack_area),
+                                            mctp_inst->rx_task_stack_area,
+                                            K_THREAD_STACK_SIZEOF(mctp_inst->rx_task_stack_area),
                                             mctp_rx_task,
                                             mctp_inst, NULL, NULL,
                                             K_PRIO_PREEMPT(10), 0, K_MSEC(1));
     if (!mctp_inst->mctp_rx_task_tid)
         goto error;
+
     k_thread_name_set(mctp_inst->mctp_rx_task_tid, mctp_inst->mctp_rx_task_name);
 
     /* create tx service */
     mctp_inst->mctp_tx_task_tid = k_thread_create(&mctp_inst->tx_task_thread_data,
-                                            tx_task_stack_area,
-                                            K_THREAD_STACK_SIZEOF(tx_task_stack_area),
+                                            mctp_inst->tx_task_stack_area,
+                                            K_THREAD_STACK_SIZEOF(mctp_inst->tx_task_stack_area),
                                             mctp_tx_task,
                                             mctp_inst, NULL, NULL,
                                             K_PRIO_PREEMPT(10), 0, K_MSEC(1));
@@ -445,7 +442,7 @@ uint8_t mctp_start(mctp *mctp_inst)
     if (!mctp_inst->mctp_tx_task_tid)
         goto error;
     k_thread_name_set(mctp_inst->mctp_tx_task_tid, mctp_inst->mctp_tx_task_name);
-    
+
     mctp_inst->is_servcie_start = 1;
     return MCTP_SUCCESS;
 

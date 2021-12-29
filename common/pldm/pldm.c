@@ -1,5 +1,6 @@
 #include <zephyr.h>
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/printk.h>
 #include <sys/slist.h>
@@ -10,13 +11,12 @@
 
 LOG_MODULE_REGISTER(pldm);
 
-#define STACKSIZE 1024
 #define PLDM_HDR_INST_ID_MASK 0x1F
 #define PLDM_MSG_CHECK_PER_MS 1000
 #define PLDM_MSG_TIMEOUT_MS 5000
 #define PLDM_RESP_MSG_PROC_MUTEX_TIMEOUT_MS 500
+#define PLDM_TASK_NAME_MAX_SIZE 32
 
-K_THREAD_STACK_DEFINE(list_monitor_thread_stack, STACKSIZE);
 typedef struct _wait_resp_pldm_msg {
     sys_snode_t node;
     pldm_hdr hdr;
@@ -311,8 +311,8 @@ pldm_t *pldm_init(void *interface, uint8_t user_idx)
         goto err;
 
     pldm_inst->monitor_task = k_thread_create(&pldm_inst->thread_data,
-        list_monitor_thread_stack,
-        K_THREAD_STACK_SIZEOF(list_monitor_thread_stack),
+        pldm_inst->monitor_thread_stack,
+        K_THREAD_STACK_SIZEOF(pldm_inst->monitor_thread_stack),
         list_monitor,
         pldm_inst, NULL, NULL,
         7, 0, K_MSEC(10)
@@ -322,6 +322,10 @@ pldm_t *pldm_init(void *interface, uint8_t user_idx)
         LOG_ERR("create pldm monitor task failed!!");
         goto err;
     }
+
+    uint8_t t_name[PLDM_TASK_NAME_MAX_SIZE];
+    snprintf(t_name, sizeof(t_name), "pldm_%d_monitor", user_idx);
+    k_thread_name_set(pldm_inst->monitor_task, t_name);
 
     pldm_inst->interface = interface;
     pldm_inst->user_idx = user_idx;
