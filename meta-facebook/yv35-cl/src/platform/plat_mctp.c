@@ -10,6 +10,7 @@
 #include <logging/log.h>
 #include <logging/log_ctrl.h>
 #include "mctp.h"
+#include "mctp_ctrl.h"
 #include "pldm.h"
 
 LOG_MODULE_REGISTER(plat_mctp);
@@ -55,7 +56,8 @@ static mctp_smbus_port smbus_port[] = {
 };
 
 mctp_route_entry mctp_route_tbl[] = {
-    {0x10, 0x08, 0x32},
+    {0x10, 0x08, 0x64},
+    {0x11, 0x08, 0x62},
 };
 
 struct k_thread mctp_test_thread;
@@ -87,8 +89,25 @@ static pldm_t *find_pldm_by_mctp(void *mctp_p)
 
     return NULL;
 }
-#if 0
-static uint8_t set_dev_ep(void)
+
+static void set_ep_resp_handler(void *args, uint8_t *buf, uint16_t len)
+{
+    if (!buf || !len)
+        return;
+
+    LOG_HEXDUMP_WRN(buf, len, __func__);
+
+    // struct _set_eid_resp *resp = (struct _set_eid_resp *)buf;
+}
+
+static void set_ep_resp_to(void *args)
+{
+    printk("%s\n", __func__);
+    mctp_route_entry *p = (mctp_route_entry *)args;
+    printk("p->addr = %x\n", p->addr);
+}
+
+static void set_dev_ep(void)
 {
     for (uint8_t i = 0; i < ARRAY_SIZE(mctp_route_tbl); i++) {
         mctp_route_entry *p = mctp_route_tbl + i;
@@ -97,24 +116,29 @@ static uint8_t set_dev_ep(void)
             if (p->bus != smbus_port[j].conf.smbus_conf.bus)
                 continue;
             
-            /* find the mctp/pldm instance, set endpoint */
-            mctp_ext_param ext_param = {0};
-            ext_param.type = MCTP_MEDIUM_TYPE_SMBUS;
-            ext_param.smbus_ext_param.addr = p->addr;
+            struct _set_eid_req req;
+            req.op = SET_EID_REQ_OP_SET_EID;
+            req.eid = p->endpoint;
 
-            pldm_msg msg = {0};
-            msg.hdr.pldm_type = PLDM_TYPE_OEM;
-            msg.hdr.cmd = PLDM_OEM_IPMI_BRIDGE;
+            mctp_ctrl_msg msg;
+            memset(&msg, 0, sizeof(msg));
+            msg.ext_param.type = MCTP_MEDIUM_TYPE_SMBUS;
+            msg.ext_param.smbus_ext_param.addr = p->addr;
+
+            msg.hdr.cmd = MCTP_CTRL_CMD_SET_ENDPOINT_ID;
             msg.hdr.rq = 1;
-            struct _ipmi_cmd_req *req = (struct _ipmi_cmd_req *)msg.buf;
-            req->netfn = 0x06 << 2;
-            req->cmd = 0x01;
-            msg.len = 2;
 
-            mctp_pldm_send_msg(smbus_port[0].pldm_inst, &msg, ext_param, main_gettid, NULL);
+            msg.cmd_data = (uint8_t *)&req;
+            msg.cmd_data_len = sizeof(req);
+
+            msg.recv_resp_cb_fn = set_ep_resp_handler;
+            msg.timeout_cb_fn = set_ep_resp_to;
+            msg.timeout_cb_fn_args = p;
+
+            mctp_ctrl_send_msg(find_mctp_by_smbus(p->bus), &msg);
+        }
     }
 }
-#endif
 
 uint8_t mctp_control_cmd_handler(void *mctp_p, uint8_t src_ep, uint8_t *buf, uint32_t len, mctp_ext_param ext_params)
 {
@@ -135,6 +159,10 @@ static uint8_t mctp_msg_recv(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext_
     (void)ic;
 
     switch (msg_type) {
+    case MCTP_MSG_TYPE_CTRL:
+        mctp_ctrl_cmd_handler(mctp_p, buf, len, ext_params);
+        break;
+        
     case MCTP_MSG_TYPE_PLDM:
         mctp_pldm_cmd_handler(find_pldm_by_mctp(mctp_p), buf, len, ext_params);
         break;
@@ -172,17 +200,6 @@ static uint8_t get_mctp_route_info(uint8_t dest_endpoint, void **mctp_inst, mctp
     }
 
     return rc;
-}
-
-static void main_gettid(void *args, uint8_t *buf, uint16_t len)
-{
-    LOG_HEXDUMP_WRN(buf, len, "ipmi over pldm resp");
-}
-
-static void to_test(void *to_args)
-{
-    uint8_t *i = (uint8_t *)to_args;
-    LOG_DBG("*i = %d", *i);
 }
 
 void mctp_test_handler(void *arug0, void *arug1, void *arug2){
@@ -244,6 +261,7 @@ void plat_mctp_init(void)
             continue;
         }
 
+        LOG_DBG("mctp_inst = %p", p->mctp_inst);
         uint8_t rc = mctp_set_medium_configure(p->mctp_inst, MCTP_MEDIUM_TYPE_SMBUS, p->conf);
         LOG_DBG("mctp_set_medium_configure %s", (rc == MCTP_SUCCESS)? "success": "failed");
 
@@ -259,7 +277,9 @@ void plat_mctp_init(void)
         mctp_start(p->mctp_inst);
     }
 
-    /* TODO: init the device endpoint */
+    /* init the device endpoint */
+    k_msleep(10);
+    set_dev_ep();
 
 #if 0
     k_thread_create(&mctp_test_thread, mctp_test_thread_stack,

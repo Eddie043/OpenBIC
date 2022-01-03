@@ -184,4 +184,4 @@ uint8_t mctp_reg_msg_rx_func(mctp *mctp_inst, mctp_fn_cb rx_cb);
 }
 #endif
 
-#endif /* _PLDM_H */
+#endif /* _MCTP_H */
