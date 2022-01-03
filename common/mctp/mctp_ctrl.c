@@ -24,10 +24,10 @@ typedef struct _wait_msg {
     mctp_ctrl_msg msg;
 } wait_msg;
 
-K_MUTEX_DEFINE(mutex);
+static K_MUTEX_DEFINE(wait_recv_resp_mutex);
 
 static sys_slist_t wait_recv_resp = SYS_SLIST_STATIC_INIT(&wait_recv_resp);
-#if 0
+
 static uint8_t to_chk(sys_slist_t *list, struct k_mutex *mutex)
 {
     if (!list || !mutex)
@@ -43,9 +43,7 @@ static uint8_t to_chk(sys_slist_t *list, struct k_mutex *mutex)
     sys_snode_t *pre_node = NULL;
     int64_t cur_uptime = k_uptime_get();
 
-    uint8_t count = 0;
     SYS_SLIST_FOR_EACH_NODE_SAFE(list, node, s_node) {
-        count++;
         wait_msg *p = (wait_msg *)node;
 
         if ((p->exp_to_ms <= cur_uptime)) {
@@ -75,17 +73,16 @@ static void to_monitor(void *dummy0, void *dummy1, void *dummy2)
     while (1) {
         k_msleep(TO_CHK_INTERVAL_MS);
 
-        to_chk(&wait_recv_resp, &mutex);
+        to_chk(&wait_recv_resp, &wait_recv_resp_mutex);
     }
 }
-#endif
 
 static uint8_t mctp_ctrl_cmd_resp_proc(mctp *mctp_inst, uint8_t *buf, uint32_t len, mctp_ext_param ext_params)
 {
     if (!mctp_inst || !buf || !len)
         return MCTP_ERROR;
     
-    if (k_mutex_lock(&mutex, K_MSEC(RESP_MSG_PROC_MUTEX_WAIT_TO_MS))) {
+    if (k_mutex_lock(&wait_recv_resp_mutex, K_MSEC(RESP_MSG_PROC_MUTEX_WAIT_TO_MS))) {
         LOG_WRN("mutex is locked over %d ms!", RESP_MSG_PROC_MUTEX_WAIT_TO_MS);
         return MCTP_ERROR;
     }
@@ -110,7 +107,7 @@ static uint8_t mctp_ctrl_cmd_resp_proc(mctp *mctp_inst, uint8_t *buf, uint32_t l
             pre_node = node;
         }
     }
-    k_mutex_unlock(&mutex);
+    k_mutex_unlock(&wait_recv_resp_mutex);
 
     if (found_node) {
         /* invoke resp handler */
@@ -182,13 +179,12 @@ uint8_t mctp_ctrl_send_msg(void *mctp_p, mctp_ctrl_msg *msg)
         p->msg = *msg;
         p->exp_to_ms = k_uptime_get() + (msg->timeout_ms ? msg->timeout_ms : DEFAULT_WAIT_TO_MS);
 
-        k_mutex_lock(&mutex, K_FOREVER);
+        k_mutex_lock(&wait_recv_resp_mutex, K_FOREVER);
         sys_slist_append(&wait_recv_resp, &p->node);
-        k_mutex_unlock(&mutex);
+        k_mutex_unlock(&wait_recv_resp_mutex);
     }
 
     return MCTP_SUCCESS;
 }
-#if 0
+
 K_THREAD_DEFINE(monitor_tid, 1024, to_monitor, NULL, NULL, NULL, 7, 0, 0);
-#endif

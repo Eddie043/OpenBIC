@@ -73,9 +73,15 @@ typedef struct __attribute__((packed)) {
 } pldm_resp_hdr;
 
 typedef struct _pldm_msg {
-    pldm_hdr hdr; /* TODO: endian check */
-    uint8_t buf[PLDM_MAX_DATA_SIZE];
+    pldm_hdr hdr;
+    uint8_t *buf;
     uint16_t len;
+    mctp_ext_param ext_param;
+    void (*recv_resp_cb_fn)(void *, uint8_t *, uint16_t);
+    void *recv_resp_cb_args;
+    uint16_t timeout_ms;
+    void (*timeout_cb_fn)(void *);
+    void *timeout_cb_fn_args;
 } pldm_msg;
 
 typedef struct _pldm {
@@ -97,16 +103,10 @@ typedef struct _pldm {
 } pldm_t;
 
 /* the pldm command handler */
-uint8_t mctp_pldm_cmd_handler(void *pldm_p, uint8_t *buf, uint32_t len, mctp_ext_param ext_params);
-
-/* send the pldm command message through mctp with timeout setting and timeout callback function */
-uint8_t mctp_pldm_send_msg_with_timeout(void *pldm_p, pldm_msg *msg, mctp_ext_param ext_param, 
-                        void (*resp_fn)(void *, uint8_t *, uint16_t), void *cb_args,
-                        uint16_t timeout_ms, void (*to_fn)(void *), void *to_fn_args);
+uint8_t mctp_pldm_cmd_handler(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext_param ext_params);
 
 /* send the pldm command message through mctp */
-uint8_t mctp_pldm_send_msg(void *pldm_p, pldm_msg *msg, mctp_ext_param ext_param, 
-                        void (*resp_fn)(void *, uint8_t *, uint16_t), void *cb_args);
+uint8_t mctp_pldm_send_msg(void *mctp_p, pldm_msg *msg);
 
 pldm_t *pldm_init(void *interface, uint8_t user_idx);
 

@@ -29,7 +29,6 @@ typedef enum {
 
 typedef struct _mctp_smbus_port {
     mctp *mctp_inst;
-    pldm_t *pldm_inst;
     mctp_medium_conf conf;
     uint8_t user_idx;
 } mctp_smbus_port;
@@ -56,8 +55,7 @@ static mctp_smbus_port smbus_port[] = {
 };
 
 mctp_route_entry mctp_route_tbl[] = {
-    {0x10, 0x08, 0x64},
-    {0x11, 0x08, 0x62},
+    {0x10, 0x08, 0x64}
 };
 
 struct k_thread mctp_test_thread;
@@ -71,20 +69,6 @@ static mctp *find_mctp_by_smbus(uint8_t bus)
         
         if (bus == p->conf.smbus_conf.bus)
             return p->mctp_inst;
-    }
-
-    return NULL;
-}
-
-static pldm_t *find_pldm_by_mctp(void *mctp_p)
-{
-    if (!mctp_p)
-        return NULL;
-
-    uint8_t i;
-    for (i = 0; i < ARRAY_SIZE(smbus_port); i++) {
-        if (smbus_port[i].mctp_inst == mctp_p)
-            return smbus_port[i].pldm_inst;
     }
 
     return NULL;
@@ -140,14 +124,6 @@ static void set_dev_ep(void)
     }
 }
 
-uint8_t mctp_control_cmd_handler(void *mctp_p, uint8_t src_ep, uint8_t *buf, uint32_t len, mctp_ext_param ext_params)
-{
-    if (!mctp_p || !buf || !len)
-        return MCTP_ERROR;
-
-    return MCTP_SUCCESS;
-}
-
 static uint8_t mctp_msg_recv(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext_param ext_params)
 {
     if (!mctp_p || !buf || !len)
@@ -164,7 +140,7 @@ static uint8_t mctp_msg_recv(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext_
         break;
         
     case MCTP_MSG_TYPE_PLDM:
-        mctp_pldm_cmd_handler(find_pldm_by_mctp(mctp_p), buf, len, ext_params);
+        mctp_pldm_cmd_handler(mctp_p, buf, len, ext_params);
         break;
     }
 
@@ -206,8 +182,9 @@ void mctp_test_handler(void *arug0, void *arug1, void *arug2){
     k_msleep(2000);
 
     while (1) {
-        k_msleep(1000);
-
+        k_msleep(10);
+        set_dev_ep();
+#if 0
         pldm_cmd_proc_fn handler = NULL;
         pldm_oem_handler_query(PLDM_OEM_IPMI_BRIDGE, (void **)&handler);
         printk("%s:%s:%d\n", __FILE__, __func__, __LINE__);
@@ -223,8 +200,9 @@ void mctp_test_handler(void *arug0, void *arug1, void *arug2){
             ext_params.smbus_ext_param.addr = 0x20;
 
             printk("%s:%s:%d\n", __FILE__, __func__, __LINE__);
-            handler(smbus_port[0].pldm_inst, ipmi_buf + sizeof(pldm_hdr), sizeof(ipmi_buf) - sizeof(pldm_hdr), resp.buf, &resp.len, &ext_params);
+            handler(smbus_port[0].mctp_inst, ipmi_buf + sizeof(pldm_hdr), sizeof(ipmi_buf) - sizeof(pldm_hdr), resp.buf, &resp.len, &ext_params);
         }
+#endif
 #if 0
         mctp_ext_param ext_param = {0};
         ext_param.type = MCTP_MEDIUM_TYPE_SMBUS;
@@ -267,21 +245,15 @@ void plat_mctp_init(void)
 
         mctp_reg_endpoint_resolve_func(p->mctp_inst, get_mctp_route_info);
         mctp_reg_msg_rx_func(p->mctp_inst, mctp_msg_recv);
-        
-        p->pldm_inst = pldm_init(p->mctp_inst, p->user_idx);
-        if (!p->pldm_inst) {
-            LOG_ERR("pldm_init failed!!");
-            continue;
-        }
 
         mctp_start(p->mctp_inst);
     }
 
     /* init the device endpoint */
     k_msleep(10);
-    set_dev_ep();
+    // set_dev_ep();
 
-#if 0
+#if 1
     k_thread_create(&mctp_test_thread, mctp_test_thread_stack,
                     K_THREAD_STACK_SIZEOF(mctp_test_thread_stack),
                     mctp_test_handler,
