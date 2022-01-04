@@ -161,16 +161,14 @@ uint8_t mctp_pldm_cmd_handler(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext
     /* the message is a request, find the proper handler to handle it */
     /* initial response data */
     uint8_t resp_buf[PLDM_MAX_DATA_SIZE] = {0};
-    uint16_t resp_len = 0;
+    uint16_t resp_len = 1; /* default without header length, the header length will be added before sending */
 
-    pldm_msg resp;
-    memset(&resp, 0, sizeof(resp));
-    resp.buf = resp_buf;
-    resp.hdr = *hdr;
-    resp.hdr.rq = 0;
-    resp.len = 1; /* at least 1 byte comp code */
+    /* make response header */
+    hdr->rq = 0;
+    memcpy(resp_buf, hdr, sizeof(*hdr));
 
-    uint8_t *comp = resp.buf;
+    /* default one byte response data - completion code */
+    uint8_t *comp = resp_buf + sizeof(*hdr);
 
     pldm_cmd_proc_fn handler = NULL;
     uint8_t (*handler_query)(uint8_t, void **) = NULL;
@@ -197,15 +195,14 @@ uint8_t mctp_pldm_cmd_handler(void *mctp_p, uint8_t *buf, uint32_t len, mctp_ext
     }
     
     /* invoke the cmd handler to process */
-    rc = handler(mctp_inst, buf + sizeof(*hdr), len - sizeof(*hdr), resp.buf, &resp.len, &ext_params);
+    rc = handler(mctp_inst, buf + sizeof(*hdr), len - sizeof(*hdr), resp_buf + sizeof(*hdr), &resp_len, &ext_params);
     if (rc == PLDM_LATER_RESP)
         return PLDM_SUCCESS;
 
 send_msg:
     /* send the pldm response data */
-    resp_len = sizeof(resp.hdr) + resp.len;
-    LOG_DBG("resp_len = %d", resp_len);
-	return mctp_send_msg(mctp_inst, (uint8_t *)&resp, resp_len, ext_params);
+    resp_len = sizeof(*hdr) + resp_len;
+	return mctp_send_msg(mctp_inst, resp_buf, resp_len, ext_params);
 }
 
 uint8_t mctp_pldm_send_msg(void *mctp_p, pldm_msg *msg)
