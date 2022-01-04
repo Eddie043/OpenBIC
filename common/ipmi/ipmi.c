@@ -318,7 +318,7 @@ ipmi_error IPMI_handler(void *arug0, void *arug1, void *arug2)
       } else if (msg_cfg.buffer.InF_source == HOST_KCS_IFs) {
         ;
       } else if (msg_cfg.buffer.InF_source == PLDM_IFs) {
-        /* the message should be passed to bmc by pldm format */
+        /* the message should be passed to source by pldm format */
         send_msg_by_pldm(&msg_cfg);
       } else {
         status = ipmb_send_response(&msg_cfg.buffer, IPMB_inf_index_map[msg_cfg.buffer.InF_source]);
