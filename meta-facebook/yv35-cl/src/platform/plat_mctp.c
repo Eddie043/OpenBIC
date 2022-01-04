@@ -20,12 +20,18 @@ LOG_MODULE_REGISTER(plat_mctp);
 #define MCTP_IC_SHIFT 7
 #define MCTP_IC_MASK 0x80
 
-typedef enum {
-    PLDM_INTERFACE_E_UNKNOWN = 0x0,
-    PLDM_INTERFACE_E_BMC,
-    PLDM_INTERFACE_E_NIC0,
-    PLDM_INTERFACE_E_MAX
-} PLDM_INTERFACE_E;
+ /* i2c 8 bit address */
+#define I2C_ADDR_BIC 0x40
+#define I2C_ADDR_BMC 0x20
+#define I2C_ADDR_NIC 0x64
+
+/* i2c dev bus */
+#define I2C_BUS_BMC 0x06
+#define I2C_BUS_NIC 0x08
+
+/* mctp endpoint */
+#define MCTP_EID_BMC 0x08
+#define MCTP_EID_NIC 0x10
 
 typedef struct _mctp_smbus_port {
     mctp *mctp_inst;
@@ -50,12 +56,13 @@ static mctp_msg_handler cmd_tbl[] = {
 };
 #endif
 static mctp_smbus_port smbus_port[] = {
-    {.conf.smbus_conf.addr = 0x40, .conf.smbus_conf.bus = 0x06, .user_idx = PLDM_INTERFACE_E_BMC},
-    {.conf.smbus_conf.addr = 0x40, .conf.smbus_conf.bus = 0x08, .user_idx = PLDM_INTERFACE_E_NIC0}
+    {.conf.smbus_conf.addr = I2C_ADDR_BIC, .conf.smbus_conf.bus = I2C_BUS_BMC},
+    {.conf.smbus_conf.addr = I2C_ADDR_BIC, .conf.smbus_conf.bus = I2C_BUS_NIC}
 };
 
 mctp_route_entry mctp_route_tbl[] = {
-    {0x10, 0x08, 0x64}
+    {MCTP_EID_BMC, I2C_BUS_BMC, I2C_ADDR_BMC},
+    {MCTP_EID_NIC, I2C_BUS_NIC, I2C_ADDR_NIC}
 };
 
 struct k_thread mctp_test_thread;
@@ -95,12 +102,16 @@ static void set_dev_ep(void)
 {
     for (uint8_t i = 0; i < ARRAY_SIZE(mctp_route_tbl); i++) {
         mctp_route_entry *p = mctp_route_tbl + i;
+        
+        /* skip BMC */
+        if (p->bus == I2C_BUS_BMC && p->addr == I2C_ADDR_BMC)
+            continue;
 
         for (uint8_t j = 0; j < ARRAY_SIZE(smbus_port); j++) {
             if (p->bus != smbus_port[j].conf.smbus_conf.bus)
                 continue;
             
-            struct _set_eid_req req;
+            struct _set_eid_req req = {0};
             req.op = SET_EID_REQ_OP_SET_EID;
             req.eid = p->endpoint;
 
@@ -251,9 +262,9 @@ void plat_mctp_init(void)
 
     /* init the device endpoint */
     k_msleep(10);
-    // set_dev_ep();
+    set_dev_ep();
 
-#if 1
+#if 0
     k_thread_create(&mctp_test_thread, mctp_test_thread_stack,
                     K_THREAD_STACK_SIZEOF(mctp_test_thread_stack),
                     mctp_test_handler,
