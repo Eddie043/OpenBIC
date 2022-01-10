@@ -60,7 +60,18 @@ static uint8_t ipmi_cmd(void *mctp_inst, uint8_t *buf, uint16_t len, uint8_t *re
         return PLDM_ERROR;
 
     struct _ipmi_cmd_req *req_p = (struct _ipmi_cmd_req *)buf;
-    
+
+    if (len < (sizeof(*req_p) - 1)) {
+        LOG_WRN("request len %d is invalid", len);
+        struct _ipmi_cmd_resp *resp_p = (struct _ipmi_cmd_resp *)resp;
+        resp_p->completion_code = PLDM_BASE_CODES_ERROR_INVALID_LENGTH;
+        set_iana(resp_p->iana, sizeof(resp_p->iana));
+
+        *resp_len += sizeof(resp_p->iana);
+        LOG_WRN("*resp_len = %d...", *resp_len);
+        return PLDM_ERROR; 
+    }
+
     if (chk_iana(req_p->iana) == PLDM_ERROR) {
         LOG_WRN("iana %08x is uncorret", (uint32_t)req_p->iana);
         struct _ipmi_cmd_resp *resp_p = (struct _ipmi_cmd_resp *)resp;
@@ -70,13 +81,13 @@ static uint8_t ipmi_cmd(void *mctp_inst, uint8_t *buf, uint16_t len, uint8_t *re
     }
 
     LOG_INF("ipmi over pldm, len = %d\n", len);
-    LOG_INF("netfn %x, cmd %x", req_p->netfn, req_p->cmd);
+    LOG_INF("netfn %x, cmd %x", req_p->netfn_lun, req_p->cmd);
     LOG_HEXDUMP_INF(buf, len, "ipmi cmd data");
 
     ipmi_msg_cfg msg = {0};
 
     /* set up ipmi data */
-    msg.buffer.netfn = req_p->netfn;
+    msg.buffer.netfn = req_p->netfn_lun >> 2;
     msg.buffer.cmd = req_p->cmd;
     msg.buffer.data_len = len - sizeof(*req_p) + 1;
     memcpy(msg.buffer.data, &req_p->first_data, msg.buffer.data_len);
@@ -84,13 +95,13 @@ static uint8_t ipmi_cmd(void *mctp_inst, uint8_t *buf, uint16_t len, uint8_t *re
     /* for ipmi/ipmb service to know the source is pldm */
     msg.buffer.InF_source = PLDM_IFs;
 
-    /* store the pldm_inst/pldm header/mctp_ext_param in the last of buffer data */
+    /* store the mctp_inst/pldm header/mctp_ext_param in the last of buffer data */
     /* those will use for the ipmi/ipmb service that is done the request */
     uint16_t pldm_hdr_ofs = sizeof(msg.buffer.data) - sizeof(pldm_hdr);
     uint16_t mctp_ext_param_ofs = pldm_hdr_ofs - sizeof(mctp_ext_param);
     uint16_t mctp_inst_ofs = mctp_ext_param_ofs - sizeof(mctp_inst);
 
-    /* store the address of pldm_inst in the buffer */
+    /* store the address of mctp_inst in the buffer */
     memcpy(msg.buffer.data + mctp_inst_ofs, &mctp_inst, 4);
 
     /* store the ext_param in the buffer */

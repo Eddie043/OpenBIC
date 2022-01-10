@@ -55,7 +55,7 @@ static uint8_t send_msg_by_pldm(ipmi_msg_cfg *msg_cfg)
     struct _ipmi_cmd_resp *cmd_resp = (struct _ipmi_cmd_resp *)resp.buf;
     set_iana(cmd_resp->iana, sizeof(cmd_resp->iana));
     cmd_resp->completion_code = PLDM_BASE_CODES_SUCCESS;
-    cmd_resp->netfn = msg_cfg->buffer.netfn | 0x01;
+    cmd_resp->netfn_lun = (msg_cfg->buffer.netfn | 0x01) << 2;
     cmd_resp->cmd = msg_cfg->buffer.cmd;
     cmd_resp->ipmi_comp_code = msg_cfg->buffer.completion_code;
     memcpy(&cmd_resp->first_data, msg_cfg->buffer.data, msg_cfg->buffer.data_len);
