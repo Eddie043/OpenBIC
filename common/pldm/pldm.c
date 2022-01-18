@@ -214,10 +214,8 @@ uint8_t mctp_pldm_send_msg(void *mctp_p, pldm_msg *msg)
 
     /* the request should be set inst_id/msg_type/mctp_tag_owner in the header */
     if (msg->hdr.rq) {
-        static uint8_t inst_id; /* TODO: just one inst_id for all mctp service, should modify? */
-
         /* set pldm header */
-        msg->hdr.inst_id = (inst_id++) & PLDM_HDR_INST_ID_MASK;
+        msg->hdr.inst_id = (mctp_inst->pldm_inst_id++) & PLDM_HDR_INST_ID_MASK;
         msg->hdr.msg_type = MCTP_MSG_TYPE_PLDM;
         
         /* set mctp extra parameters */

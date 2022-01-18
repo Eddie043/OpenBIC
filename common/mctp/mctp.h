@@ -146,6 +146,9 @@ typedef struct _mctp {
     
     /* the callback when recevie mctp data */
     mctp_fn_cb rx_cb;
+
+    /* for pldm instance id */
+    uint8_t pldm_inst_id;
 } mctp;
 
 /* public function */
