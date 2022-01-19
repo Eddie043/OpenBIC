@@ -182,7 +182,7 @@ static void mctp_rx_task(void *arg, void *dummy0, void *dummy1)
                                     change the tag_owner for response if needs */
         ext_param.ep = hdr->src_ep;
 
-        if (hdr->dest_ep != mctp_inst->endpoint) {
+        if ((hdr->dest_ep != mctp_inst->endpoint) && (hdr->dest_ep != MCTP_NULL_EID)) {
             /* try to bridge this packet */
             bridge_msg(mctp_inst, read_buf, read_len);
             continue;
