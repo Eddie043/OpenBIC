@@ -210,7 +210,9 @@ void IPMI_handler(void *arug0, void *arug1, void *arug2)
 			}
 
 			if (msg_cfg.buffer.InF_source == BMC_USB) {
+#ifdef CONFIG_USB
 				usb_write_by_ipmi(&msg_cfg.buffer);
+#endif
 			} else if (msg_cfg.buffer.InF_source == HOST_KCS) {
 #ifdef CONFIG_IPMI_KCS_ASPEED
 				uint8_t *kcs_buff;
