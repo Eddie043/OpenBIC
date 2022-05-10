@@ -8,12 +8,12 @@
 // Default name: Reserve_GPIOH0
 #define name_gpioA                                                                                 \
 	gpio_name_to_num(ASIC_DEV_RST_N) gpio_name_to_num(ASIC_PERST0_N)        \
-		gpio_name_to_num(ASIC_EVENT_N) gpio_name_to_num(IRQ_P12V_E1S_0_FLT_N)         \
-			gpio_name_to_num(IRQ_P12V_E1S_1_FLT_N) gpio_name_to_num(IRQ_P12V_E1S_2_FLT_N) \
-				gpio_name_to_num(IRQ_P3V3_E1S_0_FLT_N)                             \
-					gpio_name_to_num(IRQ_P3V3_E1S_1_FLT_N)
+		gpio_name_to_num(ASIC_EVENT_N) gpio_name_to_num(FM_P12V_HSC_EN)         \
+			gpio_name_to_num(IRQ_P12V_HSC_FLT_N) gpio_name_to_num(FM_P3V3_HSC_SW_EN) \
+				gpio_name_to_num(IRQ_P3V3_HSC_FLT_N)                             \
+					gpio_name_to_num(Reserve_GPIOA7)
 #define name_gpioB                                                                                 \
-	gpio_name_to_num(IRQ_P3V3_E1S_2_FLT_N) gpio_name_to_num(P0V9_ASICA_1_FT_R)                    \
+	gpio_name_to_num(Reserve_GPIOB0) gpio_name_to_num(P0V9_ASICA_1_FT_R)                    \
 		gpio_name_to_num(P0V9_ASICA_1_PWRGD) gpio_name_to_num(ASIC_GPIO_R_0)  \
 			gpio_name_to_num(JTAG2_NTRST2_R) gpio_name_to_num(FM_AUX_PWR_EN)             \
 				gpio_name_to_num(I2CS_SRSTB_GPIO)                        \
@@ -33,7 +33,7 @@
 					gpio_name_to_num(CXL_CLOCK_R_OE)
 #define name_gpioE                                                                                 \
 	gpio_name_to_num(FM_POWER_EN) gpio_name_to_num(PWRGD_EXP_PWROK_R)                  \
-		gpio_name_to_num(RST_MB_N) gpio_name_to_num(MASTER)               \
+		gpio_name_to_num(RST_MB_N) gpio_name_to_num(SPI_MASTER_SEL_R)               \
 			gpio_name_to_num(SMB_VR_PVDDQ_AB_ALERT_N)                                  \
 				gpio_name_to_num(P1V2_VDD_PG_R)                        \
 					gpio_name_to_num(RST_SMB_E1S_0_R_N)                             \
@@ -55,7 +55,7 @@
 	gpio_name_to_num(PVDDQ_AB_FT_R) gpio_name_to_num(PWRGD_PVDDQ_AB)                       \
 		gpio_name_to_num(SPI_BIC_SHIFT_EN) gpio_name_to_num(JTAG2_BIC_SHIFT_EN) \
 			gpio_name_to_num(SMB_IO_EXP_R_SCL) gpio_name_to_num(SMB_IO_EXP_R_SDA)          \
-				gpio_name_to_num(SMB_BIC_ASIC_R_SCL) gpio_name_to_num(Reserve_GPIOH7)
+				gpio_name_to_num(SMB_BIC_ASIC_R_SCL) gpio_name_to_num(SMB_BIC_ASIC_R_SDA)
 #define name_gpioI                                                                                 \
 	gpio_name_to_num(SMB_BIC_SENSOR_R_CLK) gpio_name_to_num(SMB_BIC_SENSOR_R_SDA)                          \
 		gpio_name_to_num(SMB_MBCPLD_BIC_SCL) gpio_name_to_num(SMB_MBCPLD_BIC_SDA)                  \
@@ -86,11 +86,11 @@
 #define name_gpioN                                                                                 \
 	gpio_name_to_num(SGPIO_BMC_CLK_R) gpio_name_to_num(ASIC_PERST0_D_R_N)                       \
 		gpio_name_to_num(SGPIO_BMC_DOUT_R) gpio_name_to_num(E1S_SMB_MUX_SEL_2_R)                 \
-			gpio_name_to_num(FM_P12V_E1S_1_R_EN) gpio_name_to_num(FM_P12V_E1S_2_R_EN)          \
+			gpio_name_to_num(Reserve_GPION4) gpio_name_to_num(Reserve_GPION5)          \
 				gpio_name_to_num(FM_P0V9_ASICA_1_EN) gpio_name_to_num(FM_CLKBUF_R_EN)
 #define name_gpioO                                                                                 \
-	gpio_name_to_num(FM_P12V_E1S_0_R_EN) gpio_name_to_num(IRQ_INA230_E1S_0_ALERT_R_N)                          \
-		gpio_name_to_num(IRQ_INA230_E1S_1_ALERT_R_N) gpio_name_to_num(IRQ_INA230_E1S_2_ALERT_R_N)                  \
+	gpio_name_to_num(Reserve_GPIOO0) gpio_name_to_num(IRQ_INA230_E1S_0_ALERT_R_N)                          \
+		gpio_name_to_num(IRQ_INA230_PVPP_AB_ALERT_N) gpio_name_to_num(Reserve_GPIOO3)                  \
 			gpio_name_to_num(JTAG2_BIC_R_NTRST2) gpio_name_to_num(JTAG2_BIC_R_TCK)          \
 				gpio_name_to_num(JTAG2_BIC_R_TDI) gpio_name_to_num(JTAG2_BIC_ASIC_S_TDO)
 #define name_gpioP                                                                                 \
@@ -101,8 +101,8 @@
 // GPIOQ5 hardware not define
 #define name_gpioQ                                                                                 \
 	gpio_name_to_num(CLKBUF_E1S_2_OE_R_N) gpio_name_to_num(P5V_STBY_PG)                          \
-		gpio_name_to_num(FM_P3V3_E1S_0_SW_R_EN) gpio_name_to_num(FM_P3V3_E1S_1_SW_R_EN)                  \
-			gpio_name_to_num(FM_P3V3_E1S_2_SW_R_EN) gpio_name_to_num(Reserve_GPIOQ5)          \
+		gpio_name_to_num(Reserve_GPIOQ2) gpio_name_to_num(Reserve_GPIOQ3)                  \
+			gpio_name_to_num(Reserve_GPIOQ4) gpio_name_to_num(Reserve_GPIOQ5)          \
 				gpio_name_to_num(Reserve_GPIOQ6) gpio_name_to_num(Reserve_GPIOQ7)
 #define name_gpioR                                                                                 \
 	gpio_name_to_num(Reserve_GPIOR0) gpio_name_to_num(Reserve_GPIOR1)                          \
@@ -119,13 +119,13 @@
 #define name_gpioT                                                                                 \
 	gpio_name_to_num(FM_CARD_TYPE) gpio_name_to_num(A_P12V_STBY_SCALED)                          \
 		gpio_name_to_num(A_P3V3_STBY_SCALED) gpio_name_to_num(A_P12V_E1S_0_SCALED)                  \
-			gpio_name_to_num(A_P12V_E1S_1_SCALED) gpio_name_to_num(A_P12V_E1S_2_SCALED)          \
+			gpio_name_to_num(Reserve_GPIOT4) gpio_name_to_num(Reserve_GPIOT5)          \
 				gpio_name_to_num(A_VDD_P1V2_SENSOR) gpio_name_to_num(A_VDD_P1V8_SENSOR)
 // GPIOU input only
 #define name_gpioU                                                                                 \
 	gpio_name_to_num(A_P5V_STBY_SCALED) gpio_name_to_num(A_PVTT0V6AB_SENSOR)                          \
-		gpio_name_to_num(A_P3V3_E1S_2_SCALED) gpio_name_to_num(A_PVPP2V5AB_SENSOR)                  \
-			gpio_name_to_num(A_P3V3_E1S_1_SCALED) gpio_name_to_num(A_P3V3_E1S_0_SCALED)          \
+		gpio_name_to_num(Reserve_GPIOU2) gpio_name_to_num(A_PVPP2V5AB_SENSOR)                  \
+			gpio_name_to_num(Reserve_GPIOU4) gpio_name_to_num(A_P3V3_E1S_SCALED)          \
 				gpio_name_to_num(RST_SMB_E1S_1_R_N) gpio_name_to_num(RST_SMB_E1S_2_R_N)
 
 #define gpio_name_to_num(x) x,
