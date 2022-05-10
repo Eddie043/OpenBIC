@@ -1,12 +1,12 @@
 #ifndef PLAT_VERSION_H
 #define PLAT_VERSION_H
 
-#define PLATFORM_NAME "yv35"
-#define PROJECT_NAME "Rainbow Falls"
+#define PLATFORM_NAME "wf35"
+#define PROJECT_NAME "Waimano Falls"
 #define IANA_ID 0x009c9c
 #define DEVICE_ID 0x00
 #define DEVICE_REVISION 0x80
-// BIT 0:3  1: CraterLake 2: Baseboard 3: Rainbow falls
+// BIT 0:3  1: CraterLake 2: Baseboard 3: Waimano falls
 // BIT 4:7  0: POC 1: EVT 2: DVT
 #define FIRMWARE_REVISION_1 0x03
 #define FIRMWARE_REVISION_2 0x01
