@@ -1,15 +1,17 @@
 &adc0 {
 	status = "okay";
-	pinctrl-0 = <&pinctrl_adc0_default &pinctrl_adc1_default
-		           &pinctrl_adc2_default &pinctrl_adc6_default 
-               &pinctrl_adc7_default>;
+	pinctrl-0 = <	
+				&pinctrl_adc0_default &pinctrl_adc1_default &pinctrl_adc2_default 
+				&pinctrl_adc3_default &pinctrl_adc6_default &pinctrl_adc7_default	
+				>;
 };
 
 &adc1 {
 	status = "okay";
-	pinctrl-0 = <&pinctrl_adc10_default &pinctrl_adc11_default
-		           &pinctrl_adc12_default &pinctrl_adc13_default
-		           &pinctrl_adc14_default>;
+	pinctrl-0 = <  
+				&pinctrl_adc8_default &pinctrl_adc9_default
+				&pinctrl_adc11_default &pinctrl_adc13_default
+				>;
 };
 
 &i2c0 {
@@ -87,6 +89,7 @@
 	};
 };
 
+
 &spi1 {
 	status = "okay";
 };
@@ -99,6 +102,10 @@
 
 &uart5 {
   current-speed = <57600>;
+};
+
+&jtag1{
+	status = "okay";
 };
 
 &wdt0 {
