@@ -4,7 +4,6 @@
 #include "cmsis_os.h"
 #include "hal_gpio.h"
 #include "plat_gpio.h"
-#include "plat_isr.h"
 
 #define gpio_name_to_num(x) #x,
 const char *const gpio_name[] = {
@@ -82,7 +81,7 @@ GPIO_CFG plat_gpio_cfg[] = {
 	  NULL }, //D7
 
 	{ CHIP_GPIO, 32, ENABLE, DISABLE, GPIO_INPUT, GPIO_HIGH, OPEN_DRAIN, GPIO_INT_EDGE_BOTH,
-	  ISR_CL_DC_ON }, //E0 // GPIO E group ISR_CL_DC_ON ---low
+	  NULL }, //E0
 	{ CHIP_GPIO, 33, ENABLE, ENABLE, GPIO_OUTPUT, GPIO_LOW, PUSH_PULL, GPIO_INT_DISABLE,
 	  NULL }, //E1 //latch Enable 20220601
 	{ CHIP_GPIO, 34, ENABLE, DISABLE, GPIO_INPUT, GPIO_HIGH, OPEN_DRAIN, GPIO_INT_DISABLE,
