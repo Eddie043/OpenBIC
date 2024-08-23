@@ -1155,6 +1155,32 @@ static inline bool init_drive_type(sensor_cfg *p, uint16_t current_drive)
 	return true;
 }
 
+uint8_t commom_tbl_sen_reinit(uint8_t sen_num)
+{
+	sensor_cfg *cfg = get_common_sensor_cfg_info(sen_num);
+	if (!cfg) {
+		LOG_ERR("Fail to get sensor config info, sensor number: 0x%x", sen_num);
+		return SENSOR_NOT_FOUND;
+	}
+
+	for (uint8_t i = 0; i < ARRAY_SIZE(sensor_drive_tbl); i++) {
+		if (cfg->type != sensor_drive_tbl[i].dev)
+			continue;
+
+		if (init_drive_type(cfg, i) == false) {
+			LOG_ERR("reinit drive type fail, sensor num: 0x%x, type: 0x%x",
+				cfg->num, cfg->type);
+			return SENSOR_NOT_FOUND;
+		}
+
+		LOG_DBG("Reinit sensor num: 0x%x, type: 0x%x success", cfg->num, cfg->type);
+
+		break;
+	}
+
+	return 0;
+}
+
 static void drive_init(void)
 {
 	const uint16_t max_drive_num = ARRAY_SIZE(sensor_drive_tbl);
