@@ -20,11 +20,13 @@
 #include "stdint.h"
 #include "stdbool.h"
 
-#define FSC_TEMP_INVALID 0xFF
+#define FSC_TEMP_INVALID 0x8000
 #define FSC_RPM_INVALID 0xFFFF
 
 #define FSC_ENABLE 1
 #define FSC_DISABLE 0
+
+#define SENSOR_STEPWISE_STEPS_MAX 16
 
 enum FSC_ERROR {
 	FSC_ERROR_NONE = 0, // OK status
@@ -47,18 +49,17 @@ enum FSC_TYPE {
 /* stepwise */
 typedef struct {
 	uint8_t temp;
-	uint16_t rpm;
+	uint8_t duty;
 } stepwise_dict;
 
 typedef struct {
 	uint8_t sensor_num;
-	stepwise_dict *step;
-	uint8_t step_len; // len of stepwise_dict
+	stepwise_dict step[SENSOR_STEPWISE_STEPS_MAX];
 	uint8_t pos_hyst; // positive_hysteresis
 	uint8_t neg_hyst; // negative_hysteresis
 
 	// calculate use
-	int last_temp;
+	int16_t last_temp;
 } stepwise_cfg;
 
 /* pid */
@@ -80,7 +81,7 @@ typedef struct {
 	// calculate use
 	int integral;
 	int last_error; //for kd
-	uint16_t last_rpm;
+	uint8_t last_duty;
 } pid_cfg;
 
 /* zone control */
@@ -90,8 +91,12 @@ typedef struct {
 } fsc_type_mapping;
 
 typedef struct {
-	fsc_type_mapping *table;
-	uint8_t table_size;
+	stepwise_cfg *sw_tbl;
+	uint8_t sw_tbl_num;
+
+	pid_cfg *pid_tbl;
+	uint8_t pid_tbl_num;
+
 	float FF_gain; // Duty/RPM
 	uint8_t i_limit_min; // Duty
 	uint8_t i_limit_max; // Duty
@@ -109,7 +114,8 @@ typedef struct {
 	uint8_t set_duty_arg; //  set_duty arg
 
 	// calculate use
-	uint16_t last_rpm;
+	uint16_t fsc_poll_count;
+	uint8_t last_duty;
 } zone_cfg;
 
 uint8_t get_fsc_enable_flag(void);
