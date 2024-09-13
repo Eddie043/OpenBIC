@@ -66,22 +66,18 @@ typedef struct {
 typedef struct {
 	uint8_t sensor_num;
 	int setpoint;
-	uint16_t kp;
-	uint8_t ki;
-	uint8_t kd;
+	float kp;
+	float ki;
+	float kd;
 	uint16_t i_limit_min; // RPM
 	uint16_t i_limit_max; // RPM
-	uint16_t out_limit_min; // RPM
-	uint16_t out_limit_max; // RPM
-	uint16_t slew_neg; // RPM/s
-	uint16_t slew_pos; // RPM/s
 	uint8_t pos_hyst; // positive_hysteresis
 	uint8_t neg_hyst; // negative_hysteresis
 
 	// calculate use
-	int integral;
+	float integral;
 	int last_error; //for kd
-	uint8_t last_duty;
+	int16_t last_temp;
 } pid_cfg;
 
 /* zone control */
@@ -97,9 +93,6 @@ typedef struct {
 	pid_cfg *pid_tbl;
 	uint8_t pid_tbl_num;
 
-	float FF_gain; // Duty/RPM
-	uint8_t i_limit_min; // Duty
-	uint8_t i_limit_max; // Duty
 	uint8_t out_limit_min; // Duty
 	uint8_t out_limit_max; // Duty
 	uint16_t slew_neg; // RPM
@@ -116,10 +109,13 @@ typedef struct {
 	// calculate use
 	uint16_t fsc_poll_count;
 	uint8_t last_duty;
+	uint8_t is_init;
 } zone_cfg;
 
 uint8_t get_fsc_enable_flag(void);
 void set_fsc_enable_flag(uint8_t flag);
 void fsc_init(void);
+uint8_t fsc_debug_set(uint8_t enable);
+uint8_t fsc_debug_get(void);
 
 #endif

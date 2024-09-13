@@ -4,8 +4,18 @@
 #include "sensor.h"
 #include "plat_sensor_table.h"
 #include <logging/log.h>
+#include <math.h>
+#include <random/rand32.h>
 
 LOG_MODULE_REGISTER(plat_fsc);
+
+static bool enable_debug_print = false;
+#define FSC_PRINTF(fmt, ...) \
+    do { \
+        if (enable_debug_print) { \
+            printf(fmt, ##__VA_ARGS__); \
+        } \
+    } while (0)
 
 struct k_thread fsc_thread;
 K_KERNEL_STACK_MEMBER(fsc_thread_stack, 2048);
@@ -13,6 +23,17 @@ K_KERNEL_STACK_MEMBER(fsc_thread_stack, 2048);
 static uint8_t fsc_poll_flag = 1;
 extern zone_cfg zone_table[];
 extern uint32_t zone_table_size;
+
+uint8_t fsc_debug_set(uint8_t enable)
+{
+	enable_debug_print = enable;
+	return FSC_ERROR_NONE;
+}
+
+uint8_t fsc_debug_get(void)
+{
+	return enable_debug_print;
+}
 
 uint8_t get_fsc_enable_flag(void)
 {
@@ -31,9 +52,9 @@ static uint8_t calculateStepwise(zone_cfg *zone_p, uint8_t *duty)
 	CHECK_NULL_ARG_WITH_RETURN(duty, FSC_ERROR_NULL_ARG);
 
 	if (!zone_p->sw_tbl || !zone_p->sw_tbl_num)
-		return FSC_ERROR_NONE;
+		return FSC_ERROR_NULL_ARG;
 
-	LOG_INF("calculateStepwise");
+	FSC_PRINTF("\t------- calculateStepwise\n");
 	uint8_t max_duty = 0;
 
 	for (int i = 0; i < zone_p->sw_tbl_num; i++) {
@@ -44,11 +65,15 @@ static uint8_t calculateStepwise(zone_cfg *zone_p, uint8_t *duty)
 		float tmp = 0.0;
 		if (get_sensor_reading_to_real_val(p->sensor_num, &tmp) !=
 			SENSOR_READ_4BYTE_ACUR_SUCCESS) {
+
+			// if the sensor reading fail, assume that is 100.0 degree
 			tmp = 100.0;
+
+			tmp = 55.0 + sys_rand32_get() % 10;
 		}
 
 		int16_t temp = (int16_t)tmp;
-		LOG_INF("sensor_num %x, temp = %d", p->sensor_num, temp);
+		FSC_PRINTF("\t\t----- sensor_num %x, temp = %d\n", p->sensor_num, temp);
 
 		// hysteresis
 		if (p->pos_hyst || p->neg_hyst) {
@@ -65,7 +90,7 @@ static uint8_t calculateStepwise(zone_cfg *zone_p, uint8_t *duty)
 		// find duty by temp
 		uint8_t tmp_duty = 100;
 		for (int j = 0; j < ARRAY_SIZE(p->step); j++) {
-			LOG_INF("temp %d, duty %d", p->step[j].temp, p->step[j].duty);
+			FSC_PRINTF("\t\t\ttemp %d, duty %d\n", p->step[j].temp, p->step[j].duty);
 			if (p->last_temp <= p->step[j].temp) {
 				tmp_duty = p->step[j].duty;
 				break;
@@ -73,50 +98,81 @@ static uint8_t calculateStepwise(zone_cfg *zone_p, uint8_t *duty)
 		}
 
 		max_duty = MAX(max_duty, tmp_duty);
-		LOG_INF("sensor_num %x, last_temp = %d, tmp_duty = %d, max_duty = %d", 
+		FSC_PRINTF("\t\tsensor_num %x, last_temp = %d, tmp_duty = %d, max_duty = %d\n", 
 			p->sensor_num, p->last_temp, tmp_duty, max_duty);
 	}
 
 	*duty = max_duty;
-	LOG_INF("*duty = %d", *duty);
+	FSC_PRINTF("\tcalculateStepwise duty = %d\n", *duty);
 	return FSC_ERROR_NONE;
 }
 
 static uint8_t calculatePID(zone_cfg *zone_p, uint8_t *duty)
 {
-#if 0
-	CHECK_NULL_ARG_WITH_RETURN(rpm, FSC_ERROR_NULL_ARG);
-	pid_cfg *table = find_pid_table(sensor_num);
-	CHECK_NULL_ARG_WITH_RETURN(table, FSC_ERROR_NOT_FOUND_PID_TABLE);
+	CHECK_NULL_ARG_WITH_RETURN(zone_p, FSC_ERROR_NULL_ARG);
+	CHECK_NULL_ARG_WITH_RETURN(duty, FSC_ERROR_NULL_ARG);
 
-	int error = table->setpoint - val;
+	FSC_PRINTF("\t------- calculatePID\n");
 
-	table->integral += error;
-	int16_t iterm = table->integral * table->ki;
+	uint8_t max_duty = 0;
+	for (int i = 0; i < zone_p->pid_tbl_num; i++) {
+		pid_cfg *p = zone_p->pid_tbl + i;
+		if (!p)
+			continue;
 
-	if (table->i_limit_min)
-		iterm = (iterm < table->i_limit_min) ? table->i_limit_min : iterm;
-	if (table->i_limit_max)
-		iterm = (iterm > table->i_limit_max) ? table->i_limit_max : iterm;
+		float tmp = 0.0;
+		if (get_sensor_reading_to_real_val(p->sensor_num, &tmp) !=
+			SENSOR_READ_4BYTE_ACUR_SUCCESS) {
+			tmp = 100.0;
 
-	int16_t output =
-		table->kp * error + iterm + table->kd * (error - table->last_error); // ignore kd
+			tmp = 55.0 + sys_rand32_get() % 10;
+		}
 
-	if (table->out_limit_min)
-		output = (output < table->out_limit_min) ? table->out_limit_min : output;
-	if (table->out_limit_max)
-		output = (output > table->out_limit_max) ? table->out_limit_max : output;
+		int16_t temp = (int16_t)tmp;
+		FSC_PRINTF("\t\t----- sensor_num %x, temp = %d, p->setpoint %d\n", p->sensor_num, temp, p->setpoint);
 
-	if (table->slew_pos && (output - table->last_rpm > table->slew_pos)) {
-		output = table->last_rpm + table->slew_pos;
-	} else if (table->slew_neg && (output - table->last_rpm < (-table->slew_neg))) {
-		output = table->last_rpm - table->slew_neg;
+		// hysteresis
+		if (p->pos_hyst || p->neg_hyst) {
+			if (p->last_temp == FSC_TEMP_INVALID) // first time
+				p->last_temp = temp;
+			else if ((temp - p->last_temp) > p->pos_hyst)
+                p->last_temp = temp;
+            else if ((p->last_temp - temp) > p->neg_hyst)
+                p->last_temp = temp;
+		} else {
+			p->last_temp = temp;
+		}
+
+		// p term
+		int error = p->setpoint - temp;
+		float pterm = p->kp * (float)error;
+		FSC_PRINTF("\t\t\tp->kp = %f, error = %d, pterm = %f\n", p->kp, error, pterm);
+
+		// i term
+		float iterm = p->integral;
+		iterm += p->ki * (float)error;
+
+		FSC_PRINTF("\t\t\tp->ki = %f, p->integral = %f, iterm = %f\n", p->ki, p->integral, iterm);
+		iterm = CLAMP(iterm, p->i_limit_min, p->i_limit_max);
+		FSC_PRINTF("\t\t\tclamped iterm = %f\n", iterm);
+
+		// d term
+		float dterm = p->kd * (error - p->last_error);
+		FSC_PRINTF("\t\t\tp->kd = %f, p->last_error = %d, dterm = %f\n", p->kd, p->last_error, dterm);
+
+		// calculate duty
+		uint8_t tmp_duty = (uint8_t)(pterm + iterm + dterm);
+		FSC_PRINTF("\t\ttmp_duty = %d, %f\n", tmp_duty, pterm + iterm + dterm);
+
+		p->integral = iterm;
+		p->last_error = error;
+
+		/* compare with the maximum duty */
+		max_duty = MAX(max_duty, tmp_duty);
 	}
 
-	table->last_error = error;
-	table->last_rpm = output;
-	*rpm = output;
-#endif
+	FSC_PRINTF("\tcalculatePID duty = %d\n", max_duty);
+	*duty = max_duty;
 	return FSC_ERROR_NONE;
 }
 
@@ -141,10 +197,12 @@ uint8_t get_fsc_poll_count(uint8_t zone, uint8_t *count)
 }
 
 /* set the zone_cfg stored data to default */
-static void zone_reinit(void)
+static void zone_init(void)
 {
 	for (int i = 0; i < zone_table_size; i++) {
 		zone_cfg *zone_p = zone_table + i;
+
+		zone_p->is_init = false;
 
 		// init stepwise last temp
 		for (int j = 0; j < zone_p->sw_tbl_num; j++) {
@@ -159,7 +217,7 @@ static void zone_reinit(void)
 			if (p) {
 				p->integral = 0;
 				p->last_error = 0;
-				p->last_duty = 0;
+				p->last_temp = FSC_TEMP_INVALID;
 			}
 		}
 
@@ -202,30 +260,45 @@ static void fsc_thread_handler(void *arug0, void *arug1, void *arug2)
 			uint8_t duty = 0;
 			uint8_t tmp_duty = 0;
 
+			FSC_PRINTF("---------- fsc zone %d\n", i);
 			zone_cfg *zone_p = zone_table + i;
 			if (zone_p == NULL)
-				goto fan_tbl_skip;
+				continue;
 
 			if (zone_p->sw_tbl) {
 				calculateStepwise(zone_p, &tmp_duty);
-				duty = MAX(duty, tmp_duty);
+				duty += tmp_duty;
 			}
 
+			tmp_duty = 0;
 			if (zone_p->pid_tbl) {
 				calculatePID(zone_p, &tmp_duty);
-				duty = MAX(duty, tmp_duty);
+				duty += tmp_duty;
 			}
 
-			LOG_INF("fsc zone %d, duty %d", i, duty);
+			FSC_PRINTF("sw + pid duty %d\n", duty);
 
-			if (zone_p->set_duty)
-				zone_p->set_duty(zone_p->set_duty_arg, duty);
-			else
-				LOG_ERR("FSC zone %d set duty function is NULL", i);
+			if (zone_p->is_init) {
+				if (zone_p->slew_neg) {
+					uint8_t min_out = zone_p->last_duty - zone_p->slew_neg;
+					if (duty < min_out)
+						duty = min_out;
+				}
+
+				if (zone_p->slew_pos) {
+					uint8_t max_out = zone_p->last_duty + zone_p->slew_pos;
+					if (duty > max_out)
+						duty = max_out;
+				}
+			}
+
+			FSC_PRINTF("slew duty %d\n", duty);
+			duty = CLAMP(duty, zone_p->out_limit_min, zone_p->out_limit_max);
+			FSC_PRINTF("clamped duty %d\n", duty);
 
 			zone_p->last_duty = duty;
+			zone_p->is_init = true;
 
-fan_tbl_skip:
 			// set_duty
 			if (zone_p->set_duty)
 				zone_p->set_duty(zone_p->set_duty_arg, duty);
@@ -240,7 +313,7 @@ fan_tbl_skip:
 
 void fsc_init(void)
 {
-	zone_reinit();
+	zone_init();
 	controlFSC(FSC_ENABLE);
 
 	LOG_INF("fsc_init zone_table %p, zone_table_size %d", zone_table, zone_table_size);
