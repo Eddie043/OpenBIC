@@ -1,0 +1,8 @@
+<map id="pump_reset" name="pump_reset">
+<area shape="rect" id="node1" title=" " alt="" coords="5,35,96,61"/>
+<area shape="rect" id="node2" href="$adm1272_8c.html#a3bf1c93e8dd2e712410f2ebe20b60698" title=" " alt="" coords="168,8,316,35"/>
+<area shape="rect" id="node5" href="$sensor_8c.html#a52fcbd96358bec7eff3e368a4da4a292" title=" " alt="" coords="144,60,340,87"/>
+<area shape="rect" id="node3" href="$hal__i2c_8c.html#a044cf163a5942b056d4a4feb0c056e9e" title=" " alt="" coords="396,5,517,32"/>
+<area shape="rect" id="node4" href="$hal__i2c_8c.html#abe0116512c803f4b7188c17345eb998f" title=" " alt="" coords="573,5,716,32"/>
+<area shape="rect" id="node6" href="$sensor_8c.html#ae224ad26413eb100f2abef7a1907a547" title=" " alt="" coords="388,57,525,98"/>
+</map>
